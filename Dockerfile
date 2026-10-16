@@ -17,7 +17,7 @@ COPY --from=build /out/x360-kdc /usr/local/bin/x360-kdc
 COPY --from=build /out/x360-gateway /usr/local/bin/x360-gateway
 # Third entrypoint: the LiveHive HTTP endpoint on TCP 25 (also privileged).
 COPY --from=build /out/x360-liveinfo /usr/local/bin/x360-liveinfo
-RUN setcap cap_net_bind_service=+ep /usr/local/bin/x360-kdc /usr/local/bin/x360-liveinfo && apk del libcap-utils
+RUN setcap cap_net_bind_service=+ep /usr/local/bin/x360-kdc && setcap cap_net_bind_service=+ep /usr/local/bin/x360-liveinfo && apk del libcap-utils
 USER app
 EXPOSE 88/udp 3074/udp 25/tcp
 ENTRYPOINT ["/usr/local/bin/x360-kdc"]
