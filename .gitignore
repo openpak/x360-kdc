@@ -1,0 +1,10 @@
+.env
+/x360-kdc
+/dist
+*.log
+# key material never belongs in this repo
+*.pem
+*.key
+x360-ticket-key.bin
+x360-dev-accounts.json
+/keys/
