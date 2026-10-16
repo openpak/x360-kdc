@@ -225,15 +225,32 @@ workstation run tests with `TMPDIR=../scratch/tmp` (never /tmp).
 | `X360_KDC_SG_ADDRESS` | no | `10.0.2.2` | IPv4 advertised as the security gateway in the D7 record; the default fits only a local Wharf test |
 | `X360_KDC_ACCOUNT_CORE_URL` | production: yes | | account core gRPC listener (`http://host:7000`, cleartext HTTP/2, or `https://`). Set together with the token or not at all |
 | `X360_KDC_ACCOUNT_CORE_TOKEN` | with URL | | the core's internal key (`x-internal-key`) |
-| `X360_KDC_ACCOUNT_CORE_ENROL_ACCOUNT` | no | | interim: OpenPak account id that owns consoles the core has never seen (the KDC creates the link). Unset = unknown consoles are refused |
 | `X360_KDC_DEBUG` | no | `false` | debug-level logging |
 
-**Production must set the account-core variables.** With them, MACS looks the console up in the core
-(`Links.GetLinkBySubject`, namespace `x360-console`, subject = the 12 console digits) and answers only for an
-`active` link; the core being down, the console being unpaired or the link being pending/revoking/revoked all mean
-no reply. The local JSON store then only caches the issued key plus `core_link_id`/`core_account_id`, and XEAS
-refuses entries without them. Without the variables the local store alone decides: development only, logged as a
-warning at start.
+**Production must set the account-core variables.** The core cannot hold a device without an owner, so a console
+has two states:
+
+- **Pending / unowned**: the core has no `x360-console` link for it (or only a pending reservation). MACS, XEAS
+  and XETGS still serve it from the local store, so a CA-verified console always gets its machine account, TGT
+  and `sg/S0` ticket. The MACS log line says `console=unowned`.
+- **Owned**: an `active` link (namespace `x360-console`, subject = the 12 console digits) exists. The record
+  caches `core_link_id`/`core_account_id` and the log carries `core_link`/`core_account`.
+
+Only a link the core reports `revoking` or `revoked`, or a core error or timeout (10 s), stops MACS (no reply,
+nothing cached). Without the variables the local store alone decides: development only, warned at start.
+
+**Enrol on user sign-in** (`internal/accountcore.SignInService`, the service layer; the wire trigger is not
+captured yet). `SignIn` verifies the OpenPak email and password with `Identity.VerifyPassword` (adapter
+namespace `x360`, purpose `console_login`; two-factor accounts fail closed, banned or deleted accounts are
+refused), then `ReserveLink` + `ActivateLink` for `x360-console`/console digits with that account, then the same
+for `x360`/XUID as 16 hex digits and `SetLinkPublicCode` = gamertag. A console or profile held by another account
+is refused (`ErrConsoleOwned`, `ErrUserOwned`) and nothing is changed; repeating it for the same account is a
+no-op. The TGS user path (`tgs.go`, non-zero D6 user ids) logs `user_xuids` and still refuses with a TODO: where
+the firmware carries the credentials needs a capture of XamUserLogon; no bytes are guessed.
+
+Deployment: the KDC on the secondary host reaches the core through the ZeroTier forwarder,
+`X360_KDC_ACCOUNT_CORE_URL=http://10.212.63.196:20001`, with `X360_KDC_ACCOUNT_CORE_TOKEN` taken from the box's
+shared env file (the core's internal key; never print or commit it).
 
 ## Layout
 

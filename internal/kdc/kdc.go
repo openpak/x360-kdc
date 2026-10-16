@@ -94,10 +94,14 @@ type Handler struct {
 	XMACS    *rsa.PrivateKey // decrypts the OAEP block of padata 0xDB
 	CA       *rsa.PublicKey  // OpenPak console CA, the only trust anchor
 	Accounts *Store
-	// Core, when set, makes the OpenPak account core the source of console
-	// identity: MACS needs an active pairing there, and the Accounts store is
-	// a cache. Nil means the local store alone decides (dev only).
-	Core      ConsoleEnroller
+	// Core, when set, consults the OpenPak account core at MACS: a revoked
+	// pairing is refused, an active one is cached with its account, a console
+	// the core has never seen stays unowned in the local store. Nil means the
+	// local store alone decides (dev only).
+	Core ConsoleEnroller
+	// Users, when set, is the enrol-on-sign-in service for the user TGS path
+	// (see tgs.go). Nil refuses user TGS requests.
+	Users     UserSignIn
 	TicketKey []byte // 16 bytes, encrypts our own tickets (usage 2)
 	SGAddress netip.Addr
 	Now       func() time.Time // injectable clock; time.Now in production
@@ -107,6 +111,12 @@ type Handler struct {
 // ConsoleEnroller resolves a console (12 digits) to its OpenPak pairing.
 type ConsoleEnroller interface {
 	Enrol(ctx context.Context, digits string) (*accountcore.Enrolment, error)
+}
+
+// UserSignIn verifies a person against the account core and claims the console
+// and profile for them (accountcore.SignInService).
+type UserSignIn interface {
+	SignIn(ctx context.Context, r accountcore.SignInRequest) (*accountcore.SignIn, error)
 }
 
 func (h *Handler) now() time.Time {

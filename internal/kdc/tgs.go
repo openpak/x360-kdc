@@ -201,10 +201,21 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 	if len(d6) != D6Len || binary.LittleEndian.Uint16(d6) != d6Version {
 		return nil, res, errors.New("TGS: D6 version/length")
 	}
-	for _, b := range d6[d6UsersOff : d6UsersOff+d6UsersLen] {
-		if b != 0 {
-			return nil, res, errors.New("TGS: user TGS authentication not implemented")
+	var xuids []string
+	for i := 0; i < d6UsersLen; i += 8 {
+		if x := binary.LittleEndian.Uint64(d6[d6UsersOff+i:]); x != 0 {
+			xuids = append(xuids, fmt.Sprintf("%016x", x))
 		}
+	}
+	if len(xuids) > 0 {
+		// TODO(capture): the user sign-in request. The four ids here only name
+		// the users; where the firmware carries the OpenPak credentials (a
+		// separate padata, an XUACS passport call or the user-key AS exchange)
+		// is not captured, and no bytes are guessed. Once captured, build an
+		// accountcore.SignInRequest from them and call h.Users.SignIn here,
+		// then bind the result with Store.BindCore.
+		res.Attrs = append(res.Attrs, "user_xuids", strings.Join(xuids, ","), "sign_in_service", h.Users != nil)
+		return nil, res, errors.New("TGS: user TGS authentication not implemented: credential carrier not captured (needs a capture of XamUserLogon)")
 	}
 	res.Attrs = append(res.Attrs, "title", title, "sg", h.SGAddress.String(),
 		"title_id", fmt.Sprintf("%08X", binary.LittleEndian.Uint32(d6[0x0e:])),

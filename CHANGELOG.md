@@ -14,11 +14,11 @@
 
 ## Unreleased
 
-- 2026-10-16: account core identity (step 1). `internal/accountcore` is a stdlib gRPC client for the core's
-  Links service; with `X360_KDC_ACCOUNT_CORE_URL` + `_TOKEN` set, MACS requires an active `x360-console` link in
-  the core (fails closed, no reply), caches the link id and OpenPak account id in the local record, and XEAS
-  refuses records without that pairing. Unset: behaviour unchanged (development only).
-
+- 2026-10-16: account core identity. `internal/accountcore` is a stdlib gRPC client (Links, Identity.VerifyPassword).
+  With `X360_KDC_ACCOUNT_CORE_URL` + `_TOKEN`, MACS refuses only revoked/revoking pairings and core errors;
+  consoles the core has not seen stay unowned in the local store and are served normally. Owned consoles cache
+  the link and account. `SignInService` enrols on user sign-in (console + XUID links, gamertag); the TGS user
+  path is a logged TODO until the request is captured. Unset: behaviour unchanged (development only).
 - 2026-10-16: LiveHive config endpoint, `internal/liveinfo` and `cmd/x360-liveinfo` (third binary in the image):
   `/liveinfo/GetLiveConfig.ashx` serves the `key=value;...` NUL-terminated hive (`^` escaping, size < 0x7531,
   `LiveHivePollFrequencyInMinutes`, `SMRevision` omitted unless configured); `getnetworkauthorizationlist.ashx`

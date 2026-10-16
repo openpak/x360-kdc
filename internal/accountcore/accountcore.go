@@ -23,7 +23,10 @@ import (
 	"time"
 )
 
-const linksService = "/openpak.account.v1.Links/"
+const (
+	linksService    = "/openpak.account.v1.Links/"
+	identityService = "/openpak.account.v1.Identity/"
+)
 
 // LinkState mirrors openpak.account.v1.LinkState.
 type LinkState int
@@ -118,7 +121,7 @@ func (c *Client) GetLinkBySubject(ctx context.Context, namespace, subject string
 	var req pb
 	req.str(1, namespace)
 	req.str(2, subject)
-	resp, err := c.call(ctx, "GetLinkBySubject", req)
+	resp, err := c.call(ctx, linksService+"GetLinkBySubject", req)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +135,7 @@ func (c *Client) ReserveLink(ctx context.Context, accountID, namespace, subject,
 	req.str(2, namespace)
 	req.str(3, subject)
 	req.str(4, idemKey)
-	resp, err := c.call(ctx, "ReserveLink", req)
+	resp, err := c.call(ctx, linksService+"ReserveLink", req)
 	if err != nil {
 		return nil, err
 	}
@@ -140,12 +143,45 @@ func (c *Client) ReserveLink(ctx context.Context, accountID, namespace, subject,
 	return &Link{LinkID: f.str(1), AccountID: accountID, SubjectID: subject, State: LinkState(f.num(2))}, nil
 }
 
+// SetLinkPublicCode publishes the human code (the gamertag) on an active link.
+// lookupKey is optional; empty means the display form reduced by the core.
+func (c *Client) SetLinkPublicCode(ctx context.Context, linkID, code, lookupKey string) error {
+	var req pb
+	req.str(1, linkID)
+	req.str(2, code)
+	req.str(3, lookupKey)
+	_, err := c.call(ctx, linksService+"SetLinkPublicCode", req)
+	return err
+}
+
+// Account statuses (openpak.account.v1.AccountStatus).
+const StatusActive = 1
+
+// VerifyPassword checks an OpenPak email and password for the x360 adapter
+// (purpose "console_login"). It does not offer a second-factor step: the core
+// then answers FailedPrecondition for two-factor accounts (fails closed), a
+// console has no field for the code. Wrong credentials are CodeUnauthenticated.
+// A banned or deleted account comes back with a non-active status and no id.
+func (c *Client) VerifyPassword(ctx context.Context, email, password string) (accountID string, status int, err error) {
+	var req pb
+	req.str(1, "x360")
+	req.str(2, "console_login")
+	req.str(3, email)
+	req.str(4, password)
+	resp, err := c.call(ctx, identityService+"VerifyPassword", req)
+	if err != nil {
+		return "", 0, err
+	}
+	f := parseFields(resp)
+	return f.str(1), int(f.num(2)), nil
+}
+
 // ActivateLink promotes a pending reservation to active.
 func (c *Client) ActivateLink(ctx context.Context, linkID, idemKey string) (LinkState, error) {
 	var req pb
 	req.str(1, linkID)
 	req.str(2, idemKey)
-	resp, err := c.call(ctx, "ActivateLink", req)
+	resp, err := c.call(ctx, linksService+"ActivateLink", req)
 	if err != nil {
 		return 0, err
 	}
@@ -158,7 +194,7 @@ func (c *Client) GetActiveLinkByAccount(ctx context.Context, namespace, accountI
 	var req pb
 	req.str(1, namespace)
 	req.str(2, accountID)
-	resp, err := c.call(ctx, "GetActiveLinkByAccount", req)
+	resp, err := c.call(ctx, linksService+"GetActiveLinkByAccount", req)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +216,7 @@ func (c *Client) call(ctx context.Context, method string, req pb) ([]byte, error
 	frame := make([]byte, 5, 5+len(req))
 	binary.BigEndian.PutUint32(frame[1:], uint32(len(req)))
 	frame = append(frame, req...)
-	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+linksService+method, bytes.NewReader(frame))
+	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+method, bytes.NewReader(frame))
 	if err != nil {
 		return nil, err
 	}

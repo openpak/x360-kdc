@@ -24,16 +24,13 @@ func TestMACSWithCore(t *testing.T) {
 	c := newConsole(t, ca, [5]byte{0, 0, 0, 1, 2})
 	name := ConsoleDigits(c.cert) + "@" + AccountDomain
 
-	// Core refuses: no reply, nothing cached.
-	core := &stubCore{err: accountcore.ErrNotPaired}
+	// Revoked in the core: no reply, nothing cached.
+	core := &stubCore{err: accountcore.ErrRevoked}
 	h.Core = core
 	req, _ := c.macsReq(t, &h.XMACS.PublicKey, 1, t0)
 	rep, _, err := h.Handle(req)
-	if err == nil || rep != nil || !errors.Is(err, accountcore.ErrNotPaired) {
+	if !errors.Is(err, accountcore.ErrRevoked) || rep != nil || h.Accounts.Get(name) != nil {
 		t.Fatalf("want rejection, got %v %v", rep, err)
-	}
-	if h.Accounts.Get(name) != nil {
-		t.Fatal("rejected console was cached")
 	}
 
 	// Core unreachable: same.
@@ -43,15 +40,35 @@ func TestMACSWithCore(t *testing.T) {
 		t.Fatal("core outage must reject")
 	}
 
-	// Paired: reply, ids cached and logged.
-	core.err, core.en = nil, &accountcore.Enrolment{LinkID: "L1", AccountID: "A1"}
-	req, _ = c.macsReq(t, &h.XMACS.PublicKey, 3, t0)
-	rep, res, err := h.Handle(req)
+	// Never seen by the core: unowned, still gets its machine account, TGT and sg/S0.
+	core.err, core.en = nil, &accountcore.Enrolment{}
+	req, secret := c.macsReq(t, &h.XMACS.PublicKey, 3, t0)
+	rep, _, err = h.Handle(req)
 	if err != nil || rep == nil {
-		t.Fatalf("paired MACS: %v", err)
+		t.Fatalf("unowned MACS: %v", err)
 	}
+	_ = secret
 	a := h.Accounts.Get(name)
-	if a == nil || a.CoreLinkID != "L1" || a.CoreAccountID != "A1" {
+	if a == nil || a.CoreLinkID != "" {
+		t.Fatalf("cache: %+v", a)
+	}
+	key, _ := a.Key()
+	xrep, _, err := h.Handle(xeasReq(name, key, 4, t0))
+	if err != nil {
+		t.Fatalf("XEAS for unowned console: %v", err)
+	}
+	as := decodeRep(t, xrep, tagASRep, msgASRep, key, 4, tagEncAS)
+	_ = as
+
+	// Paired in the core: ids cached and logged.
+	core.en = &accountcore.Enrolment{LinkID: "L1", AccountID: "A1"}
+	req, _ = c.macsReq(t, &h.XMACS.PublicKey, 5, t0)
+	_, res, err := h.Handle(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a = h.Accounts.Get(name)
+	if a.CoreLinkID != "L1" || a.CoreAccountID != "A1" {
 		t.Fatalf("cache: %+v", a)
 	}
 	found := false
@@ -62,30 +79,5 @@ func TestMACSWithCore(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("core link not logged: %v", res.Attrs)
-	}
-}
-
-func TestXEASRefusesUnboundAccountWhenCoreConfigured(t *testing.T) {
-	h, ca := testHandler(t, t0)
-	c := newConsole(t, ca, [5]byte{0, 0, 0, 1, 3})
-	req, secret := c.macsReq(t, &h.XMACS.PublicKey, 5, t0) // no Core yet: dev-style local account
-	rep, _, err := h.Handle(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	name := ConsoleDigits(c.cert) + "@" + AccountDomain
-	_ = rep
-	_ = secret
-	key, _ := h.Accounts.Get(name).Key()
-	h.Core = &stubCore{}
-	_, _, err = h.Handle(xeasReq(name, key, 6, t0))
-	if err == nil {
-		t.Fatal("XEAS must refuse an account without a core pairing once the core is configured")
-	}
-	if err := h.Accounts.BindCore(name, "L", "A"); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := h.Handle(xeasReq(name, key, 7, t0)); err != nil {
-		t.Fatalf("bound account refused: %v", err)
 	}
 }

@@ -83,8 +83,9 @@ func main() {
 			log.Error("account core", "err", err)
 			os.Exit(2)
 		}
-		h.Core = &accountcore.Enroller{Core: core, EnrolAccount: cfg.CoreEnrolAccount}
-		log.Info("account core enabled: MACS requires an active console pairing", "url", cfg.CoreURL, "enrol_account_set", cfg.CoreEnrolAccount != "")
+		h.Core = &accountcore.Enroller{Core: core}
+		h.Users = &accountcore.SignInService{Core: core}
+		log.Info("account core enabled: revoked pairings refused, unknown consoles stay unowned until a user signs in", "url", cfg.CoreURL)
 	} else {
 		log.Warn("account core NOT configured: identities come from the local store only (development; production must set X360_KDC_ACCOUNT_CORE_URL and _TOKEN)")
 	}
