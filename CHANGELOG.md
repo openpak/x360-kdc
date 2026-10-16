@@ -14,6 +14,12 @@
 
 ## Unreleased
 
+- 2026-10-16: LiveHive config endpoint, `internal/liveinfo` and `cmd/x360-liveinfo` (third binary in the image):
+  `/liveinfo/GetLiveConfig.ashx` serves the `key=value;...` NUL-terminated hive (`^` escaping, size < 0x7531,
+  `LiveHivePollFrequencyInMinutes`, `SMRevision` omitted unless configured); `getnetworkauthorizationlist.ashx`
+  answers an empty hive (unverified). Requests logged with User-Agent and X-Schema-Ver. Not yet reachable: the
+  SG transport for service 25 is not done.
+
 - 2026-10-16: first cut. Go port of OpenPak's Python oracle for the Xbox 360 Kerberos stages on UDP 88:
   MACS console authentication (OAEP secret, CA PSS and console PKCS#1 signatures, CE HMAC, encrypted
   timestamp; account record in padata 0xCB), XEAS machine-account exchange (stored account with

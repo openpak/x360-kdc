@@ -5,7 +5,8 @@ ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/x360-kdc ./cmd/x360-kdc \
- && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/x360-gateway ./cmd/x360-gateway
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/x360-gateway ./cmd/x360-gateway \
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/x360-liveinfo ./cmd/x360-liveinfo
 
 FROM alpine:3.22
 # The firmware dials UDP 88, a privileged port: give the binary the bind
@@ -14,7 +15,9 @@ RUN addgroup -S app && adduser -S -G app app && apk add --no-cache libcap-utils
 COPY --from=build /out/x360-kdc /usr/local/bin/x360-kdc
 # Same image, second entrypoint: the security gateway (quadlet sets Entrypoint=/usr/local/bin/x360-gateway).
 COPY --from=build /out/x360-gateway /usr/local/bin/x360-gateway
-RUN setcap cap_net_bind_service=+ep /usr/local/bin/x360-kdc && apk del libcap-utils
+# Third entrypoint: the LiveHive HTTP endpoint on TCP 25 (also privileged).
+COPY --from=build /out/x360-liveinfo /usr/local/bin/x360-liveinfo
+RUN setcap cap_net_bind_service=+ep /usr/local/bin/x360-kdc /usr/local/bin/x360-liveinfo && apk del libcap-utils
 USER app
-EXPOSE 88/udp 3074/udp
+EXPOSE 88/udp 3074/udp 25/tcp
 ENTRYPOINT ["/usr/local/bin/x360-kdc"]

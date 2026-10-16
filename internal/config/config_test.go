@@ -66,3 +66,29 @@ func TestGatewayConfig(t *testing.T) {
 		t.Fatalf("gateway config: %+v", c)
 	}
 }
+
+func TestLiveInfoConfig(t *testing.T) {
+	c, err := LoadLiveInfo(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Addr != ":25" || c.SMRevision != "" || c.PollMinutes != 120 || c.Debug {
+		t.Fatalf("defaults: %+v", c)
+	}
+	c, err = LoadLiveInfo(env(map[string]string{"X360_LIVEINFO_ADDR": "127.0.0.1:18025",
+		"X360_LIVEINFO_SMREVISION": "126d69eb6cf3737c", "X360_LIVEINFO_POLL_MINUTES": "60", "X360_LIVEINFO_DEBUG": "1"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Addr != "127.0.0.1:18025" || c.SMRevision != "126d69eb6cf3737c" || c.PollMinutes != 60 || !c.Debug {
+		t.Fatalf("overrides: %+v", c)
+	}
+	for _, m := range []map[string]string{
+		{"X360_LIVEINFO_SMREVISION": "xyz"}, {"X360_LIVEINFO_POLL_MINUTES": "10"},
+		{"X360_LIVEINFO_POLL_MINUTES": "300"}, {"X360_LIVEINFO_POLL_MINUTES": "abc"},
+	} {
+		if _, err := LoadLiveInfo(env(m)); err == nil {
+			t.Fatalf("accepted %v", m)
+		}
+	}
+}

@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
 )
 
@@ -101,6 +102,43 @@ func LoadGateway(getenv func(string) string) (*GatewayConfig, error) {
 		if r.v == "" {
 			return nil, fmt.Errorf("%s is required", r.name)
 		}
+	}
+	return c, nil
+}
+
+// DefaultLiveInfoAddr is the LiveHive HTTP port (Live service 25).
+const DefaultLiveInfoAddr = ":25"
+
+// LiveInfoConfig is the x360-liveinfo configuration.
+type LiveInfoConfig struct {
+	Addr        string // X360_LIVEINFO_ADDR, default :25 (TCP)
+	SMRevision  string // X360_LIVEINFO_SMREVISION: optional hex; empty omits the key
+	PollMinutes int    // X360_LIVEINFO_POLL_MINUTES, 30..240, default 120
+	Debug       bool   // X360_LIVEINFO_DEBUG
+}
+
+// LoadLiveInfo reads the LiveHive environment through getenv.
+func LoadLiveInfo(getenv func(string) string) (*LiveInfoConfig, error) {
+	c := &LiveInfoConfig{
+		Addr:        getenv("X360_LIVEINFO_ADDR"),
+		SMRevision:  strings.TrimSpace(getenv("X360_LIVEINFO_SMREVISION")),
+		PollMinutes: 120,
+		Debug:       isTrue(getenv("X360_LIVEINFO_DEBUG")),
+	}
+	if c.Addr == "" {
+		c.Addr = DefaultLiveInfoAddr
+	}
+	for _, r := range c.SMRevision {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return nil, fmt.Errorf("X360_LIVEINFO_SMREVISION must be a hex string")
+		}
+	}
+	if v := strings.TrimSpace(getenv("X360_LIVEINFO_POLL_MINUTES")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 30 || n > 240 {
+			return nil, fmt.Errorf("X360_LIVEINFO_POLL_MINUTES must be 30..240")
+		}
+		c.PollMinutes = n
 	}
 	return c, nil
 }

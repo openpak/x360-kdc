@@ -156,6 +156,22 @@ with until production provisioning exists.
 To point Wharf at the deployed server instead of a local one, use `nic_dns_hosts=...=145.241.228.207` and
 no port map.
 
+## LiveHive (`x360-liveinfo`)
+
+Third binary in the image (`/usr/local/bin/x360-liveinfo`, own entrypoint). After the Live logon xam.xex issues
+XRL request 0x1300 = HTTP GET `/liveinfo/GetLiveConfig.ashx` to Live service 25 (and 0x1301 =
+`/liveinfo/getnetworkauthorizationlist.ashx`), carried through the security gateway (that transport is not done
+yet). The body XAM accepts (parser `FUN_8169a200`) is NUL-terminated ASCII `key=value;key=value;...` where a
+literal `^` escapes the next character, total size below 0x7531 bytes. The server emits
+`LiveHivePollFrequencyInMinutes` (clamped 30..240 by XAM, default 120) and `SMRevision` only when configured:
+a present `SMRevision` must equal the console's local revision (`126d69eb6cf3737c` for the public 17559 update)
+or XAM asks for a system update, so OpenPak omits it. `^`, `;` and `=` in values are escaped with `^`.
+The network authorization list endpoint answers an empty hive (a lone NUL); its format is **unverified**. Every
+request is logged at info level (method, path, `User-Agent`, `X-Schema-Ver`, remote) because the firmware's
+exact headers are still being established. Config: `X360_LIVEINFO_ADDR` (default `:25`, TCP),
+`X360_LIVEINFO_SMREVISION`, `X360_LIVEINFO_POLL_MINUTES` (default 120), `X360_LIVEINFO_DEBUG`. Code:
+`internal/liveinfo`, `cmd/x360-liveinfo`.
+
 ## Dev key material
 
 Never commit keys. The dev set lives in `../scratch/wharf/keys/` (mode 0600 where private) and was made with
