@@ -155,8 +155,10 @@ func verify(in *initiation, ticketKey []byte, accounts *kdc.Store, ca *rsa.Publi
 	}
 	if sn, ok := tf[2]; !ok {
 		return nil, errors.New("SG ticket service missing")
-	} else if n, err := kdc.Principal(sn); err != nil || len(n) != 2 || n[0] != kdc.SGService[0] || n[1] != kdc.SGService[1] {
-		return nil, fmt.Errorf("SG ticket service %v (want %v)", n, kdc.SGService)
+	} else if n, err := kdc.Principal(sn); err != nil || len(n) != 2 || n[0] != kdc.SGService[0] || (n[1] != kdc.SGService[1] && n[1] != "S1") {
+		// The KDC issues sg/S0; XAM presents the same ticket as sg/S1 for the
+		// user-facing gateway session (sign-in applet), so both instances are accepted.
+		return nil, fmt.Errorf("SG ticket service %v (want sg/S0 or sg/S1)", n)
 	}
 	enc, ok := tf[3]
 	if !ok {
