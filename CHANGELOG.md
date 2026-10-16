@@ -14,6 +14,10 @@
 
 ## Unreleased
 
+- 2026-10-16: gateway service transport. Code-3 TCP-over-SA datagrams (`tcp.go`; the ICV verifies and the plaintext
+  decodes on the captured client SYNs of run sg6, resealing reproduces them byte for byte), passive TCP with
+  SYN-ACK, request reassembly, HTTP proxy to `X360_GATEWAY_SERVICE_URL` and segmented response + FIN
+  (`transport.go`). Untested against a live client.
 - 2026-10-16: account core identity. `internal/accountcore` is a stdlib gRPC client (Links, Identity.VerifyPassword).
   With `X360_KDC_ACCOUNT_CORE_URL` + `_TOKEN`, MACS refuses only revoked/revoking pairings and core errors;
   consoles the core has not seen stay unowned in the local store and are served normally. Owned consoles cache

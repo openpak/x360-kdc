@@ -213,6 +213,22 @@ or expired ticket, stale authenticator, user ids present, missing provenance. Th
 of the account store and sets the clock to each capture's time, so the saved datagrams validate; on this
 workstation run tests with `TMPDIR=../scratch/tmp` (never /tmp).
 
+## Gateway service transport (`x360-gateway`)
+
+After the SG handshake XAM runs TCP inside the secure channel: "code 3" datagrams (SPI byte 0 = `pad<<5 | 3`,
+16-bit ports, 3DES-CBC block, 12 clear TCP header bytes, counter, 10-byte ICV; layout in
+`scratch/wharf/kdcstub/notes/svc-open-layout.md`, code in `internal/gateway/tcp.go`). The gateway is the passive
+end of that connection (`internal/gateway/transport.go`): SYN -> SYN-ACK (MSS 1264, random ISN, window 0x4030),
+the client's HTTP request is reassembled from its data segments (out-of-order held, every segment ACKed), proxied
+to `X360_GATEWAY_SERVICE_URL` (path and headers kept, `Host` set to the backend, body forwarded; 502/503/400 on
+failure) and the response is sent as plain HTTP/1.1 with `Content-Length` and `Connection: close` in segments of
+at most 1200 bytes (PSH on the last, window-limited, go-back-N on a duplicate ACK), then a FIN. Client FIN is
+ACKed, RST drops the connection. Every segment (ports, flags, seq, ack, length), the HTTP request line and
+headers, and the response status are logged at info level. Code 0 control messages are unchanged.
+
+The response length is padded to a multiple of 4 with an `X-Pad` header so no segment needs an ICV filler (see
+`tcp.go`). No timer-driven retransmit: a lost segment is resent when the client repeats its ACK or request.
+
 ## Configuration
 
 | Variable | Required | Default | Meaning |
@@ -226,6 +242,7 @@ workstation run tests with `TMPDIR=../scratch/tmp` (never /tmp).
 | `X360_KDC_ACCOUNT_CORE_URL` | production: yes | | account core gRPC listener (`http://host:7000`, cleartext HTTP/2, or `https://`). Set together with the token or not at all |
 | `X360_KDC_ACCOUNT_CORE_TOKEN` | with URL | | the core's internal key (`x-internal-key`) |
 | `X360_KDC_DEBUG` | no | `false` | debug-level logging |
+| `X360_GATEWAY_SERVICE_URL` | no | `http://openpak-x360-liveinfo:10025` | x360-gateway: HTTP backend the service transport proxies to (`http://145.241.199.19` on the deployed secondary) |
 
 **Production must set the account-core variables.** The core cannot hold a device without an owner, so a console
 has two states:
