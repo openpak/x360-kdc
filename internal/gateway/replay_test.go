@@ -377,14 +377,21 @@ func TestReplayHandleSG6(t *testing.T) {
 			t.Fatalf("%s is %d bytes", n, len(p))
 		}
 		if _, _, err := open(c2s, p); err == nil {
-			t.Fatalf("%s verifies with the data formula", n)
+			t.Fatalf("%s verifies with the control-message formula", n)
 		}
-		if g.Handle(p, src) != nil || g.Sessions() != 2 {
-			t.Fatalf("%s must be logged as unverifiable and keep the session", n)
+		// Since the service transport these are TCP SYNs: answered with a SYN-ACK
+		// (same ISN for the retransmits), the session kept.
+		r := g.Handle(p, src)
+		if len(r) != 1 || g.Sessions() != 2 {
+			t.Fatalf("%s: %d replies, %d sessions\n%s", n, len(r), g.Sessions(), logs.String())
+		}
+		sa, err := openTCP(s2c, r[0], 0)
+		if err != nil || sa.Flags != 0x12 || sa.Ack != 0x6f1a097e || sa.SrcPort != 25 {
+			t.Fatalf("%s: SYN-ACK %+v %v", n, sa, err)
 		}
 	}
-	if !strings.Contains(logs.String(), "unverifiable data") {
-		t.Fatal("unverifiable packets not logged")
+	if !strings.Contains(logs.String(), "tcp tx") {
+		t.Fatal("segments not logged")
 	}
 	p17, _ := c.file(t, "sg6", "req-0017.bin")
 	if g.Handle(p17, src) != nil || g.Sessions() != 1 {

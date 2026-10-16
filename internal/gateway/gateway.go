@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/netip"
 	"sync"
 	"time"
@@ -57,6 +58,7 @@ type Session struct {
 	c2s, s2c  dirKeys
 	sendCtr   uint32 // last server-to-client counter used; starts at 0, first packet is 1
 	lastRecv  uint32
+	conns     map[tcpKey]*tcpConn // TCP connections inside the channel
 	expires   time.Time
 }
 
@@ -70,6 +72,9 @@ type Gateway struct {
 	Rand         io.Reader // default crypto/rand
 	// Handlers maps a message type to its handler; nil uses DefaultHandlers.
 	Handlers map[uint16]Handler
+	// ServiceURL is the backend the TCP service transport proxies HTTP requests to.
+	ServiceURL string
+	HTTP       *http.Client // default: 10 s timeout, no redirects
 
 	mu       sync.Mutex
 	sessions map[netip.AddrPort]*Session
@@ -206,6 +211,9 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 	if s == nil {
 		return nil, errors.New("data before SG authentication")
 	}
+	if isTCP(pkt) {
+		return g.tcpData(s, pkt, src, now)
+	}
 	spi, m, err := open(s.c2s, pkt)
 	if err != nil {
 		// The datagram is ciphertext; keeping it lets an undecodable shape be studied offline.
@@ -248,4 +256,31 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 		g.log().Info("data reply", "src", src, "type", fmt.Sprintf("%#06x", r.Type), "ctr", s.sendCtr, "body_len", len(r.Body))
 	}
 	return out, nil
+}
+
+// tcpData verifies a code-3 datagram (counter high half taken relative to the
+// last one received) and hands the segment to the TCP layer.
+func (g *Gateway) tcpData(s *Session, pkt []byte, src netip.AddrPort, now time.Time) ([][]byte, error) {
+	if pkt[0]&0x0f != codeTCP16 {
+		return nil, fmt.Errorf("TCP packet code %d not supported", pkt[0]&0x0f)
+	}
+	if len(pkt) < 4 || string(pkt[1:4]) != string(s.ServerSPI[1:]) {
+		return nil, errors.New("TCP SPI is not this session's")
+	}
+	var sg tcpSeg
+	var err error
+	for _, hi := range []uint16{uint16(s.lastRecv >> 16), uint16(s.lastRecv>>16) + 1} {
+		if sg, err = openTCP(s.c2s, pkt, hi); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		g.log().Info("unverifiable data", "src", src, "account", s.Account, "len", len(pkt), "hex", hex.EncodeToString(pkt))
+		return nil, err
+	}
+	s.expires = now.Add(SessionTTL)
+	if sg.Counter > s.lastRecv {
+		s.lastRecv = sg.Counter
+	}
+	return g.tcpSegment(s, sg, now), nil
 }
