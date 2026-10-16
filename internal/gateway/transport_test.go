@@ -196,3 +196,31 @@ func TestSmallBodyHex(t *testing.T) {
 		t.Fatalf("big: %q", got)
 	}
 }
+
+func TestUserInfo0253(t *testing.T) {
+	f := newFake(t, "")
+	user := append([]byte{0x01 | 0x04 | 0x08}, 0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01) // flags, xuid LE
+	user = append(user, 7, 0, 0, 0)                                                            // flag 1
+	user = append(user, 2, 0xaa, 0xbb)                                                         // flag 4: len 2
+	user = append(user, 9, 0, 0, 0)                                                            // flag 8
+	for _, c := range []struct {
+		name string
+		body []byte
+	}{{"keepalive", []byte{0, 0, 0, 0}}, {"user record", append([]byte{5, 0, 0, 0}, user...)}} {
+		f.ctr += 4
+		pkt := seal(f.c2s, []byte{0x80, 0xab, 0xc1, 0x23}, f.ctr, TypeUserInfo, c.body)
+		out := f.g.Handle(pkt, f.src)
+		if len(out) != 1 {
+			t.Fatalf("%s: %d replies", c.name, len(out))
+		}
+		_, m, err := open(f.s2c, out[0])
+		if err != nil || m.Type != 0x0953 || !bytes.Equal(m.Body, []byte{byte(f.ctr + 1), 0, 0, 0}) {
+			t.Fatalf("%s: %+v %v", c.name, m, err)
+		}
+	}
+	// truncated record: no reply, session kept
+	f.ctr++
+	if out := f.g.Handle(seal(f.c2s, []byte{0x80, 0xab, 0xc1, 0x23}, f.ctr, TypeUserInfo, []byte{0, 0, 0, 0, 1, 2}), f.src); out != nil {
+		t.Fatal("truncated record answered")
+	}
+}

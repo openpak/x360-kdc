@@ -12,6 +12,7 @@ package gateway
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -29,12 +30,15 @@ import (
 const (
 	TypeClose     = 0x0053 // client closes the session; no reply
 	TypeAck       = 0x0153 // empty acknowledgement
+	TypeUserInfo  = 0x0253 // keepalive / per-user records from XAM
+	TypeUserAck   = 0x0953 // reply to 0x0253
 	TypeChallenge = 0x0A53 // challenge result; any authenticated reply moves XAM's gateway state 5 -> 6
 )
 
-// SessionTTL is the idle lifetime of a session: the 300 in the reply core,
-// in the firmware's 5-second units.
-const SessionTTL = lifetimeA * 5 * time.Second
+// SessionTTL is the idle lifetime of a session: twice the 300 in the reply
+// core (firmware 5-second units), so the client's own timeout always fires
+// before ours.
+const SessionTTL = 2 * lifetimeA * 5 * time.Second
 
 // Message is a decrypted secure-channel message.
 type Message struct {
@@ -84,6 +88,7 @@ type Gateway struct {
 // 0x0153. Unknown types are logged by Handle and the session is kept.
 func DefaultHandlers() map[uint16]Handler {
 	return map[uint16]Handler{
+		TypeUserInfo:  handleUserInfo,
 		TypeChallenge: func(*Session, Message) ([]Message, error) { return []Message{{Type: TypeAck}}, nil },
 	}
 }
@@ -283,4 +288,63 @@ func (g *Gateway) tcpData(s *Session, pkt []byte, src netip.AddrPort, now time.T
 		s.lastRecv = sg.Counter
 	}
 	return g.tcpSegment(s, sg, now), nil
+}
+
+// handleUserInfo answers 0x0253 (sg-0253.md): body = u32 LE echo, then per
+// user u8 flags, u64 xuid, flag1 u32, flag2 8 bytes, flag4 u8 len + data, flag8
+// u32. The reply is 0x0953 with ack = datagram counter + 1 and no records.
+func handleUserInfo(s *Session, m Message) ([]Message, error) {
+	b := m.Body
+	if len(b) < 4 {
+		return nil, errors.New("0x0253 body shorter than 4 bytes")
+	}
+	echo := binary.LittleEndian.Uint32(b)
+	b = b[4:]
+	var recs []string
+	for len(b) > 0 {
+		if len(b) < 9 {
+			return nil, errors.New("0x0253 user record truncated")
+		}
+		fl, xuid := b[0], binary.LittleEndian.Uint64(b[1:])
+		b = b[9:]
+		take := func(n int) ([]byte, bool) {
+			if len(b) < n {
+				return nil, false
+			}
+			v := b[:n]
+			b = b[n:]
+			return v, true
+		}
+		r := fmt.Sprintf("flags=%#x xuid=%016x", fl, xuid)
+		ok := true
+		var v []byte
+		if fl&1 != 0 {
+			if v, ok = take(4); ok {
+				r += fmt.Sprintf(" f1=%d", binary.LittleEndian.Uint32(v))
+			}
+		}
+		if ok && fl&2 != 0 {
+			if v, ok = take(8); ok {
+				r += " f2=" + hex.EncodeToString(v)
+			}
+		}
+		if ok && fl&4 != 0 {
+			if v, ok = take(1); ok {
+				if v, ok = take(int(v[0])); ok {
+					r += " f4=" + hex.EncodeToString(v)
+				}
+			}
+		}
+		if ok && fl&8 != 0 {
+			if v, ok = take(4); ok {
+				r += fmt.Sprintf(" f8=%d", binary.LittleEndian.Uint32(v))
+			}
+		}
+		if !ok {
+			return nil, errors.New("0x0253 user record truncated")
+		}
+		recs = append(recs, r)
+	}
+	slog.Info("user info", "src", s.Client, "account", s.Account, "echo", echo, "records", recs)
+	return []Message{{Type: TypeUserAck, Body: binary.LittleEndian.AppendUint32(nil, m.Counter+1)}}, nil
 }
