@@ -66,3 +66,41 @@ func isTrue(v string) bool {
 	}
 	return false
 }
+
+// DefaultGatewayAddr is the security gateway's UDP port, which the firmware
+// dials on the address the D7 record carries.
+const DefaultGatewayAddr = ":3074"
+
+// GatewayConfig is the x360-gateway configuration. It shares the KDC's ticket
+// key file, account store and console CA trust anchor, read-only.
+type GatewayConfig struct {
+	Addr      string // X360_GATEWAY_ADDR, default :3074
+	TicketKey string // X360_GATEWAY_TICKET_KEY: the KDC's 16-byte ticket key file (never created here)
+	Accounts  string // X360_GATEWAY_ACCOUNTS: the KDC's account store, re-read on each initiation
+	ConsoleCA string // X360_GATEWAY_CONSOLE_CA: console CA public key PEM, to re-verify stored certificates
+	Debug     bool   // X360_GATEWAY_DEBUG
+}
+
+// LoadGateway reads the gateway environment through getenv.
+func LoadGateway(getenv func(string) string) (*GatewayConfig, error) {
+	c := &GatewayConfig{
+		Addr:      getenv("X360_GATEWAY_ADDR"),
+		TicketKey: getenv("X360_GATEWAY_TICKET_KEY"),
+		Accounts:  getenv("X360_GATEWAY_ACCOUNTS"),
+		ConsoleCA: getenv("X360_GATEWAY_CONSOLE_CA"),
+		Debug:     isTrue(getenv("X360_GATEWAY_DEBUG")),
+	}
+	if c.Addr == "" {
+		c.Addr = DefaultGatewayAddr
+	}
+	for _, r := range []struct{ v, name string }{
+		{c.TicketKey, "X360_GATEWAY_TICKET_KEY"},
+		{c.Accounts, "X360_GATEWAY_ACCOUNTS"},
+		{c.ConsoleCA, "X360_GATEWAY_CONSOLE_CA"},
+	} {
+		if r.v == "" {
+			return nil, fmt.Errorf("%s is required", r.name)
+		}
+	}
+	return c, nil
+}

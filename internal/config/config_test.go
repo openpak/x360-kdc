@@ -51,3 +51,18 @@ func TestRequiredAndInvalid(t *testing.T) {
 		}
 	}
 }
+
+func TestGatewayConfig(t *testing.T) {
+	if _, err := LoadGateway(env(nil)); err == nil {
+		t.Fatal("missing required keys accepted")
+	}
+	c, err := LoadGateway(env(map[string]string{
+		"X360_GATEWAY_TICKET_KEY": "t.bin", "X360_GATEWAY_ACCOUNTS": "a.json", "X360_GATEWAY_CONSOLE_CA": "ca.pem",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Addr != ":3074" || c.TicketKey != "t.bin" || c.Accounts != "a.json" || c.ConsoleCA != "ca.pem" || c.Debug {
+		t.Fatalf("gateway config: %+v", c)
+	}
+}
