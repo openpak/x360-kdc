@@ -92,3 +92,19 @@ func TestLiveInfoConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestAccountCoreConfig(t *testing.T) {
+	c, err := Load(env(with(map[string]string{"X360_KDC_ACCOUNT_CORE_URL": "http://core:7000", "X360_KDC_ACCOUNT_CORE_TOKEN": "k"})))
+	if err != nil || c.CoreURL != "http://core:7000" || c.CoreToken != "k" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	for _, m := range []map[string]string{
+		{"X360_KDC_ACCOUNT_CORE_URL": "http://core:7000"},
+		{"X360_KDC_ACCOUNT_CORE_TOKEN": "k"},
+		{"X360_KDC_ACCOUNT_CORE_ENROL_ACCOUNT": "a"},
+	} {
+		if _, err := Load(env(with(m))); err == nil {
+			t.Fatalf("accepted %v", m)
+		}
+	}
+}

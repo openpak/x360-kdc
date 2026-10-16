@@ -21,6 +21,11 @@ type Config struct {
 	TicketKey string     // X360_KDC_TICKET_KEY: 16-byte ticket key file, created 0600 when missing
 	SGAddress netip.Addr // X360_KDC_SG_ADDRESS: IPv4 in the D7 record
 	Debug     bool       // X360_KDC_DEBUG
+	// OpenPak account core (gRPC). Both empty: local store only (dev). Both set:
+	// MACS requires an active console pairing in the core.
+	CoreURL          string // X360_KDC_ACCOUNT_CORE_URL, e.g. http://127.0.0.1:7000
+	CoreToken        string // X360_KDC_ACCOUNT_CORE_TOKEN, the core's internal key
+	CoreEnrolAccount string // X360_KDC_ACCOUNT_CORE_ENROL_ACCOUNT: optional owner for never-seen consoles
 }
 
 // Load reads the environment through getenv (os.Getenv in production).
@@ -32,6 +37,16 @@ func Load(getenv func(string) string) (*Config, error) {
 		Accounts:  getenv("X360_KDC_ACCOUNTS"),
 		TicketKey: getenv("X360_KDC_TICKET_KEY"),
 		Debug:     isTrue(getenv("X360_KDC_DEBUG")),
+
+		CoreURL:          getenv("X360_KDC_ACCOUNT_CORE_URL"),
+		CoreToken:        getenv("X360_KDC_ACCOUNT_CORE_TOKEN"),
+		CoreEnrolAccount: getenv("X360_KDC_ACCOUNT_CORE_ENROL_ACCOUNT"),
+	}
+	if (c.CoreURL == "") != (c.CoreToken == "") {
+		return nil, fmt.Errorf("X360_KDC_ACCOUNT_CORE_URL and X360_KDC_ACCOUNT_CORE_TOKEN must be set together")
+	}
+	if c.CoreURL == "" && c.CoreEnrolAccount != "" {
+		return nil, fmt.Errorf("X360_KDC_ACCOUNT_CORE_ENROL_ACCOUNT needs the account core configured")
 	}
 	if c.Addr == "" {
 		c.Addr = ":88"

@@ -32,6 +32,11 @@ type Account struct {
 	Record                   string  `json:"account"`                    // the 84-byte record, hex
 	ConsoleSignatureVerified bool    `json:"console_signature_verified"` // provenance flag: issued after a verified MACS
 	IssuedAt                 float64 `json:"issued_at"`                  // Unix seconds
+	// Set when the account core is configured: the core's console link and
+	// the OpenPak account it is paired to. The record is then a cache of the
+	// core's answer, not the source of identity.
+	CoreLinkID    string `json:"core_link_id,omitempty"`
+	CoreAccountID string `json:"core_account_id,omitempty"`
 }
 
 // Key is the issued 16-byte account key, the last field of the record.
@@ -118,6 +123,27 @@ func (s *Store) Provision(cert []byte, now time.Time) (*Account, bool, error) {
 		return nil, false, err
 	}
 	return a, true, nil
+}
+
+// BindCore records the account core's link and OpenPak account on an existing
+// entry and persists it.
+func (s *Store) BindCore(name, linkID, accountID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.m[name]
+	if !ok {
+		return errors.New("account missing")
+	}
+	if a.CoreLinkID == linkID && a.CoreAccountID == accountID {
+		return nil
+	}
+	prevL, prevA := a.CoreLinkID, a.CoreAccountID
+	a.CoreLinkID, a.CoreAccountID = linkID, accountID
+	if err := s.save(); err != nil {
+		a.CoreLinkID, a.CoreAccountID = prevL, prevA
+		return err
+	}
+	return nil
 }
 
 func newAccountRecord(cert, key []byte) []byte {

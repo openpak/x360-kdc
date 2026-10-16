@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"openpak/x360-kdc/internal/accountcore"
 	"openpak/x360-kdc/internal/config"
 	"openpak/x360-kdc/internal/kdc"
 )
@@ -60,6 +61,17 @@ func main() {
 	defer stop()
 	log.Info("x360-kdc listening", "addr", conn.LocalAddr(), "sg", cfg.SGAddress, "accounts", store.Len(), "debug", cfg.Debug)
 	h := &kdc.Handler{XMACS: priv, CA: ca, Accounts: store, TicketKey: ticketKey, SGAddress: cfg.SGAddress, Now: time.Now, Log: log}
+	if cfg.CoreURL != "" {
+		core, err := accountcore.New(cfg.CoreURL, cfg.CoreToken, nil)
+		if err != nil {
+			log.Error("account core", "err", err)
+			os.Exit(2)
+		}
+		h.Core = &accountcore.Enroller{Core: core, EnrolAccount: cfg.CoreEnrolAccount}
+		log.Info("account core enabled: MACS requires an active console pairing", "url", cfg.CoreURL, "enrol_account_set", cfg.CoreEnrolAccount != "")
+	} else {
+		log.Warn("account core NOT configured: identities come from the local store only (development; production must set X360_KDC_ACCOUNT_CORE_URL and _TOKEN)")
+	}
 	srv := &kdc.Server{Handler: h, Log: log}
 	if err := srv.Serve(ctx, conn); err != nil {
 		log.Error("serve", "err", err)

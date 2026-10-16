@@ -11,6 +11,7 @@
 package kdc
 
 import (
+	"context"
 	"crypto/rsa"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"net/netip"
 	"time"
 
+	"openpak/x360-kdc/internal/accountcore"
 	"openpak/x360-kdc/internal/der"
 )
 
@@ -89,13 +91,22 @@ type Result struct {
 
 // Handler holds the server's keys and policy. It is safe for one goroutine.
 type Handler struct {
-	XMACS     *rsa.PrivateKey // decrypts the OAEP block of padata 0xDB
-	CA        *rsa.PublicKey  // OpenPak console CA, the only trust anchor
-	Accounts  *Store
+	XMACS    *rsa.PrivateKey // decrypts the OAEP block of padata 0xDB
+	CA       *rsa.PublicKey  // OpenPak console CA, the only trust anchor
+	Accounts *Store
+	// Core, when set, makes the OpenPak account core the source of console
+	// identity: MACS needs an active pairing there, and the Accounts store is
+	// a cache. Nil means the local store alone decides (dev only).
+	Core      ConsoleEnroller
 	TicketKey []byte // 16 bytes, encrypts our own tickets (usage 2)
 	SGAddress netip.Addr
 	Now       func() time.Time // injectable clock; time.Now in production
 	Log       *slog.Logger
+}
+
+// ConsoleEnroller resolves a console (12 digits) to its OpenPak pairing.
+type ConsoleEnroller interface {
+	Enrol(ctx context.Context, digits string) (*accountcore.Enrolment, error)
 }
 
 func (h *Handler) now() time.Time {

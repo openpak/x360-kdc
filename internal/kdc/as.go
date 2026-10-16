@@ -1,6 +1,7 @@
 package kdc
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"openpak/x360-kdc/internal/accountcore"
 	"openpak/x360-kdc/internal/der"
 	"openpak/x360-kdc/internal/rc4hmac"
 )
@@ -194,9 +196,26 @@ func (h *Handler) macs(r *kdcReq, cname []string) ([]byte, []any, error) {
 		return nil, nil, fmt.Errorf("MACS: %w", err)
 	}
 	now := h.now()
+	var enrol *accountcore.Enrolment
+	if h.Core != nil {
+		// Fail closed: no pairing in the core, or the core unreachable, means no reply.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		enrol, err = h.Core.Enrol(ctx, ConsoleDigits(m.cert))
+		cancel()
+		if err != nil {
+			return nil, nil, fmt.Errorf("MACS: account core: %w", err)
+		}
+	}
 	acct, issued, err := h.Accounts.Provision(m.cert, now)
 	if err != nil {
 		return nil, nil, fmt.Errorf("MACS: %w", err)
+	}
+	var coreAttrs []any
+	if enrol != nil {
+		if err := h.Accounts.BindCore(ConsoleDigits(m.cert)+"@"+AccountDomain, enrol.LinkID, enrol.AccountID); err != nil {
+			return nil, nil, fmt.Errorf("MACS: %w", err)
+		}
+		coreAttrs = []any{"core_link", enrol.LinkID, "core_account", enrol.AccountID, "core_created", enrol.Created}
 	}
 	record, err := hex.DecodeString(acct.Record)
 	if err != nil || len(record) != AccountLen {
@@ -209,7 +228,7 @@ func (h *Handler) macs(r *kdcReq, cname []string) ([]byte, []any, error) {
 	rep := encKDCRep(11, msgASRep, cb, r.realm, cname, opaqueTicket(r.realm, service), rc4hmac.Encrypt(m.secret, rc4hmac.UsageReply, part))
 	attrs := []any{"title", m.title, "console_id", hex.EncodeToString(m.cert[certIDOff : certIDOff+5]), "serial", m.serial,
 		"client_time", m.timestamp.UTC().Format(time.RFC3339), "account_issued", issued}
-	return rep, attrs, nil
+	return rep, append(attrs, coreAttrs...), nil
 }
 
 // xeas answers the account exchange: the account must exist with verified
@@ -226,6 +245,9 @@ func (h *Handler) xeas(r *kdcReq, cname []string) ([]byte, []any, error) {
 	}
 	if !acct.ConsoleSignatureVerified {
 		return nil, nil, errors.New("XEAS: unverified account provenance")
+	}
+	if h.Core != nil && acct.CoreLinkID == "" {
+		return nil, nil, errors.New("XEAS: account has no account-core pairing (re-run MACS)")
 	}
 	cert, err := acct.Cert()
 	if err != nil {

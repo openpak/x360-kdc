@@ -14,6 +14,11 @@
 
 ## Unreleased
 
+- 2026-10-16: account core identity (step 1). `internal/accountcore` is a stdlib gRPC client for the core's
+  Links service; with `X360_KDC_ACCOUNT_CORE_URL` + `_TOKEN` set, MACS requires an active `x360-console` link in
+  the core (fails closed, no reply), caches the link id and OpenPak account id in the local record, and XEAS
+  refuses records without that pairing. Unset: behaviour unchanged (development only).
+
 - 2026-10-16: LiveHive config endpoint, `internal/liveinfo` and `cmd/x360-liveinfo` (third binary in the image):
   `/liveinfo/GetLiveConfig.ashx` serves the `key=value;...` NUL-terminated hive (`^` escaping, size < 0x7531,
   `LiveHivePollFrequencyInMinutes`, `SMRevision` omitted unless configured); `getnetworkauthorizationlist.ashx`
