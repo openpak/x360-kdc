@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenPak x360-gateway: redirect 360 SG initiations from UDP 3074 to 13075
+After=network-online.target netfilter-persistent.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/openpak/x360-gateway-fw.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,26 @@
+# SECONDARY host (draughts-server). Shares public UDP 3074 with openpak-xb-gateway: an nftables
+# redirect (x360-xexds-nft.service) sends NEW flows whose payload starts 01 00 00 00 (the 360 dashboard's
+# xexds probe) to :13074 here; every other flow still reaches xb-gateway on :3074.
+# Host networking keeps the console's real source address, which the NAT probe reply reports.
+[Unit]
+Description=OpenPak Xbox 360 XEXDS probe endpoint (x360-xexds) on the secondary, UDP 13074 behind the 3074 redirect
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=openpak-x360-xexds
+Image=ghcr.io/openpak/x360-xexds:latest
+AutoUpdate=registry
+Network=host
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+User=10001:10001
+Environment=X360_XEXDS_ADDR=:13074
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenPak x360-xexds: redirect the 360 xexds probe from UDP 3074 to 13074
+After=network-online.target netfilter-persistent.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/openpak/x360-xexds-fw.sh
+
+[Install]
+WantedBy=multi-user.target

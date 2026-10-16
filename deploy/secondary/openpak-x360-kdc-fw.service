@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenPak x360-kdc: redirect UDP 88 to 10088 and accept it
+After=network-online.target netfilter-persistent.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/openpak/x360-kdc-fw.sh
+
+[Install]
+WantedBy=multi-user.target

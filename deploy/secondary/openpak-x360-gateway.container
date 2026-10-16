@@ -1,0 +1,36 @@
+# SECONDARY host (draughts-server). OpenPak Xbox 360 security gateway (x360-gateway), the SG the
+# x360-kdc D7 record advertises. Public UDP 3074 is shared with openpak-xb-gateway and the
+# x360-xexds redirect: openpak-x360-gateway-fw.service redirects NEW 3074 flows whose payload starts
+# 00 00 00 00 02 58 (the 360 SG initiation chunk 0x5802) to :13075 here; data packets of the same
+# flow follow by conntrack. Shares the KDC ticket key / account store read-only.
+[Unit]
+Description=OpenPak Xbox 360 security gateway (x360-gateway) on the secondary, UDP 13075 behind the 3074 redirect
+After=network-online.target openpak-x360-kdc.service
+Wants=network-online.target
+
+[Container]
+ContainerName=openpak-x360-gateway
+Image=ghcr.io/openpak/x360-kdc:latest
+Entrypoint=/usr/local/bin/x360-gateway
+AutoUpdate=registry
+Network=host
+ReadOnly=true
+DropCapability=ALL
+AddCapability=NET_BIND_SERVICE
+NoNewPrivileges=true
+UserNS=keep-id:uid=100,gid=101
+Volume=%h/openpak/deploy/x360-kdc/secrets:/run/secrets:ro,Z
+Volume=%h/openpak/deploy/x360-kdc/state:/var/lib/x360-kdc:ro,Z
+Environment=X360_GATEWAY_ADDR=:13075
+Environment=X360_GATEWAY_TICKET_KEY=/var/lib/x360-kdc/ticket-key.bin
+Environment=X360_GATEWAY_ACCOUNTS=/var/lib/x360-kdc/accounts.json
+Environment=X360_GATEWAY_CONSOLE_CA=/run/secrets/console-ca-public.pem
+Environment=X360_GATEWAY_SERVICE_URL=http://145.241.199.19
+Environment=X360_GATEWAY_DEBUG=true
+
+[Service]
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

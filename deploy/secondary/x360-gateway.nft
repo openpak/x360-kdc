@@ -1,0 +1,16 @@
+# x360-gateway shares public UDP 3074 with xb-gateway and the x360-xexds redirect: new flows whose UDP
+# payload starts 00 00 00 00 02 58 (Xbox 360 SG initiation, chunk 0x5802) go to :13075. The session's
+# later datagrams (SPI-prefixed, not matchable) follow the conntrack entry, so that entry is kept for an
+# hour after the last reply instead of the default UDP timeout. Own table.
+add table ip x360sg
+delete table ip x360sg
+table ip x360sg {
+  ct timeout x360sg {
+    protocol udp
+    policy = { unreplied: 600, replied: 3600 }
+  }
+  chain pre {
+    type nat hook prerouting priority dstnat; policy accept;
+    udp dport 3074 ct state new @th,64,32 0x00000000 @th,96,16 0x0258 counter ct timeout set "x360sg" redirect to :13075
+  }
+}

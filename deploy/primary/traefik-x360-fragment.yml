@@ -1,0 +1,27 @@
+# Fragment of the shared ~/openpak/deploy/traefik/dynamic.yml on the primary host.
+# These blocks belong in the shared dynamic.yml (routers under http.routers,
+# services under http.services), not in a separate file. Copied verbatim from
+# the live file; keep in sync when the shared file changes.
+http:
+  routers:
+    x360-liveinfo-web:
+      entryPoints:
+      - web
+      rule: PathPrefix(`/liveinfo`)
+      priority: 40
+      service: x360-liveinfo-http
+    x360-notice-web:
+      entryPoints:
+      - web
+      rule: Host(`xncsi.xboxlive.com`) || Host(`notice.xbox.com`)
+      priority: 30
+      service: x360-notice-http
+  services:
+    x360-liveinfo-http:
+      loadBalancer:
+        servers:
+        - url: http://openpak-x360-liveinfo:10025
+    x360-notice-http:
+      loadBalancer:
+        servers:
+        - url: http://openpak-x360-notice:8080

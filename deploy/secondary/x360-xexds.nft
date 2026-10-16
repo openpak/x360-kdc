@@ -1,0 +1,10 @@
+# x360-xexds shares public UDP 3074 with xb-gateway: new flows whose UDP payload starts 01 00 00 00
+# (the 360 dashboard xexds probe) go to :13074, everything else is untouched. Own table: safe to delete.
+add table ip x360
+delete table ip x360
+table ip x360 {
+  chain pre {
+    type nat hook prerouting priority dstnat; policy accept;
+    udp dport 3074 ct state new @th,64,32 0x01000000 counter redirect to :13074
+  }
+}

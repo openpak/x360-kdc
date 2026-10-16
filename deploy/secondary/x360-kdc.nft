@@ -1,0 +1,9 @@
+# x360-kdc: the 360 firmware dials UDP 88; the rootless container listens on 10088. Own table: safe to delete.
+add table ip x360kdc
+delete table ip x360kdc
+table ip x360kdc {
+  chain pre {
+    type nat hook prerouting priority dstnat; policy accept;
+    udp dport 88 counter redirect to :10088
+  }
+}
