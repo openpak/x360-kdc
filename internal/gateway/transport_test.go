@@ -182,3 +182,17 @@ func TestUpstreamDown(t *testing.T) {
 		t.Fatalf("%d segments", len(r))
 	}
 }
+
+func TestSmallBodyHex(t *testing.T) {
+	req := "POST /liveinfo/GetLiveConfig.ashx HTTP/1.0\r\nContent-Length: 8\r\n\r\n\x06\x00xenon\x00"
+	if got := smallBodyHex([]byte(req)); got != "060078656e6f6e00" {
+		t.Fatalf("got %q", got)
+	}
+	if got := smallBodyHex([]byte("GET / HTTP/1.0\r\n\r\n")); got != "" {
+		t.Fatalf("no body: %q", got)
+	}
+	big := "POST / HTTP/1.0\r\nContent-Length: 65\r\n\r\n" + strings.Repeat("a", 65)
+	if got := smallBodyHex([]byte(big)); got != "" {
+		t.Fatalf("big: %q", got)
+	}
+}

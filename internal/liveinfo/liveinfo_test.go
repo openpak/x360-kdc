@@ -2,7 +2,10 @@ package liveinfo
 
 import (
 	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -72,18 +75,65 @@ func get(h http.Handler, path string) *httptest.ResponseRecorder {
 	return rec
 }
 
+func TestWireExactBytes(t *testing.T) {
+	got, err := Hive{PollMinutes: 120}.Wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := append([]byte{0x22, 0, 0, 0, 0x01, 0, 0x22, 0}, "LiveHivePollFrequencyInMinutes=120"...)
+	if !bytes.Equal(got, want) || len(got) != 42 {
+		t.Fatalf("wire %x", got)
+	}
+	const hexWant = "220000000100" + "2200" +
+		"4c6976654869766550" + "6f6c6c4672657175656e6379496e4d696e75746573" + "3d313230"
+	if hex.EncodeToString(got) != hexWant {
+		t.Fatalf("wire hex %x", got)
+	}
+}
+
+func TestWireEmptyAndLarge(t *testing.T) {
+	if _, err := (Hive{}).Wire(); !errors.Is(err, ErrEmpty) {
+		t.Fatalf("empty: %v", err)
+	}
+	big := Hive{Extra: [][2]string{{"k", strings.Repeat("a", 20000)}}}
+	w, err := big.Wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := binary.LittleEndian.Uint32(w); int(n) != 20002 || len(w) != 8+20002 {
+		t.Fatalf("total %d len %d", n, len(w))
+	}
+	if binary.LittleEndian.Uint16(w[6:]) != 20002 {
+		t.Fatal("chunk length")
+	}
+}
+
+func post(h http.Handler, path string, body []byte) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+	req.Header.Set("User-Agent", "19/1.00.17559")
+	req.Header.Set("Content-Type", "xon/19")
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
 func TestHandler(t *testing.T) {
-	h := &Handler{Hive: Hive{PollMinutes: 120}}
-	rec := get(h, PathConfig)
-	if rec.Code != 200 || rec.Header().Get("Content-Type") != "text/plain" {
+	var logs bytes.Buffer
+	h := &Handler{Hive: Hive{PollMinutes: 120}, Log: slog.New(slog.NewTextHandler(&logs, nil))}
+	rec := post(h, PathConfig, []byte{6, 0, 'x', 'e', 'n', 'o', 'n', 0})
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != ContentType {
 		t.Fatalf("config: %d %v", rec.Code, rec.Header())
 	}
-	if !bytes.Equal(rec.Body.Bytes(), h.Hive.Body()) || rec.Header().Get("Content-Length") != "35" {
-		t.Fatalf("config body %q len %s", rec.Body.Bytes(), rec.Header().Get("Content-Length"))
+	want, _ := h.Hive.Wire()
+	if !bytes.Equal(rec.Body.Bytes(), want) || rec.Header().Get("Content-Length") != "42" {
+		t.Fatalf("config body %x len %s", rec.Body.Bytes(), rec.Header().Get("Content-Length"))
+	}
+	if !strings.Contains(logs.String(), "body_hex=06007865") {
+		t.Fatalf("request body not logged: %s", logs.String())
 	}
 	rec = get(h, PathNetAuth)
-	if rec.Code != 200 || !bytes.Equal(rec.Body.Bytes(), []byte{0}) || rec.Header().Get("Content-Type") != "text/plain" {
-		t.Fatalf("netauth: %d %q", rec.Code, rec.Body.Bytes())
+	if rec.Code != 200 || !bytes.Equal(rec.Body.Bytes(), []byte{0, 0}) || rec.Header().Get("Content-Type") != ContentType {
+		t.Fatalf("netauth: %d %x", rec.Code, rec.Body.Bytes())
 	}
 	for _, p := range []string{"/", "/liveinfo/", "/liveinfo/other.ashx"} {
 		if rec := get(h, p); rec.Code != 404 {

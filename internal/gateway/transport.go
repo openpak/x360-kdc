@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -218,12 +219,33 @@ func requestComplete(buf []byte) bool {
 	return len(buf) >= i+4+need
 }
 
+// smallBodyHex returns the request body as hex when Content-Length is 1..64
+// (the XRL request bodies are tiny; this captures them), else "".
+func smallBodyHex(raw []byte) string {
+	i := bytes.Index(raw, []byte("\r\n\r\n"))
+	if i < 0 {
+		return ""
+	}
+	n := -1
+	for _, l := range strings.Split(string(raw[:i]), "\r\n")[1:] {
+		if k, v, ok := strings.Cut(l, ":"); ok && strings.EqualFold(strings.TrimSpace(k), "Content-Length") {
+			n, _ = strconv.Atoi(strings.TrimSpace(v))
+		}
+	}
+	body := raw[i+4:]
+	if n < 1 || n > 64 || len(body) < n {
+		return ""
+	}
+	return hex.EncodeToString(body[:n])
+}
+
 // serve proxies the raw HTTP request to the service backend and returns the
 // raw HTTP response (always well formed, 502/503 when the backend is not reachable).
 func (g *Gateway) serve(raw []byte, log interface{ Info(string, ...any) }) []byte {
 	reqLine, _, _ := strings.Cut(string(raw), "\r\n")
 	head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
-	log.Info("http request", "line", reqLine, "headers", strings.ReplaceAll(head, "\r\n", " | "), "bytes", len(raw))
+	log.Info("http request", "line", reqLine, "headers", strings.ReplaceAll(head, "\r\n", " | "), "bytes", len(raw),
+		"body_hex", smallBodyHex(raw))
 	status, hdr, body := g.upstream(raw)
 	resp := buildResponse(status, hdr, body)
 	log.Info("http response", "status", status, "body_len", len(body), "bytes", len(resp))

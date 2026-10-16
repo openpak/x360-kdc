@@ -14,6 +14,12 @@
 
 ## Unreleased
 
+- 2026-10-16: LiveHive responses are now XRL "xon" binary bodies (reverse-engineered from the xam.xex schema
+  bytecode and response decoder, notes `xon-hive-format.md`): GetLiveConfig = u32 total, u16 chunk count, chunks
+  of u16 length + text (little-endian, no NUL), 42 bytes for the default hive; `getnetworkauthorizationlist`
+  = u16 entry count (empty list = `00 00`); `Content-Type: xon/19`. The bare NUL-terminated text of the
+  previous entry made XAM fail with 0x8007065B. The gateway and liveinfo now log small request bodies as hex
+  (the 8-byte request is predicted `06 00 "xenon" 00`).
 - 2026-10-16: gateway service transport. Code-3 TCP-over-SA datagrams (`tcp.go`; the ICV verifies and the plaintext
   decodes on the captured client SYNs of run sg6, resealing reproduces them byte for byte), passive TCP with
   SYN-ACK, request reassembly, HTTP proxy to `X360_GATEWAY_SERVICE_URL` and segmented response + FIN

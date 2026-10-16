@@ -159,16 +159,18 @@ no port map.
 ## LiveHive (`x360-liveinfo`)
 
 Third binary in the image (`/usr/local/bin/x360-liveinfo`, own entrypoint). After the Live logon xam.xex issues
-XRL request 0x1300 = HTTP GET `/liveinfo/GetLiveConfig.ashx` to Live service 25 (and 0x1301 =
-`/liveinfo/getnetworkauthorizationlist.ashx`), carried through the security gateway (that transport is not done
-yet). The body XAM accepts (parser `FUN_8169a200`) is NUL-terminated ASCII `key=value;key=value;...` where a
-literal `^` escapes the next character, total size below 0x7531 bytes. The server emits
+XRL request 0x1300 = HTTP POST `/liveinfo/GetLiveConfig.ashx` (`Content-Type: xon/19`, 8-byte body) to Live
+service 25, and 0x1301 = `/liveinfo/getnetworkauthorizationlist.ashx` (empty body), carried through the security
+gateway. The answers are XRL binary bodies, little-endian: GetLiveConfig = `u32 total | u16 chunks (1..10) |
+{u16 len, bytes}...` whose chunks join into ASCII `key=value;key=value;...` (a literal `^` escapes the next
+character, total below 0x7531, **no NUL on the wire**); the network authorization list = `u16 count` (empty:
+`00 00`, acceptance unverified). The example hive is
+`22000000 0100 2200 "LiveHivePollFrequencyInMinutes=120"` (42 bytes). The server emits
 `LiveHivePollFrequencyInMinutes` (clamped 30..240 by XAM, default 120) and `SMRevision` only when configured:
 a present `SMRevision` must equal the console's local revision (`126d69eb6cf3737c` for the public 17559 update)
 or XAM asks for a system update, so OpenPak omits it. `^`, `;` and `=` in values are escaped with `^`.
-The network authorization list endpoint answers an empty hive (a lone NUL); its format is **unverified**. Every
-request is logged at info level (method, path, `User-Agent`, `X-Schema-Ver`, remote) because the firmware's
-exact headers are still being established. Config: `X360_LIVEINFO_ADDR` (default `:25`, TCP),
+Every request is logged at info level (method, path, headers, small body as hex); the gateway logs the same
+body hex for Content-Length up to 64. Config: `X360_LIVEINFO_ADDR` (default `:25`, TCP),
 `X360_LIVEINFO_SMREVISION`, `X360_LIVEINFO_POLL_MINUTES` (default 120), `X360_LIVEINFO_DEBUG`. Code:
 `internal/liveinfo`, `cmd/x360-liveinfo`.
 

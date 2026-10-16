@@ -9,8 +9,11 @@
 package liveinfo
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -81,6 +84,34 @@ func (h Hive) Build() ([]byte, error) {
 	return body, nil
 }
 
+// ErrEmpty is returned by Wire for a hive without keys: XAM rejects total 0.
+var ErrEmpty = errors.New("liveinfo: empty hive")
+
+// Wire renders the GetLiveConfig response body: Build's text without the NUL,
+// as one chunk, behind the u32 total size and u16 chunk count (little-endian).
+func (h Hive) Wire() ([]byte, error) {
+	b, err := h.Build()
+	if err != nil {
+		return nil, err
+	}
+	text := b[:len(b)-1]
+	if len(text) == 0 {
+		return nil, ErrEmpty
+	}
+	out := binary.LittleEndian.AppendUint32(nil, uint32(len(text)))
+	out = binary.LittleEndian.AppendUint16(out, 1)
+	out = binary.LittleEndian.AppendUint16(out, uint16(len(text)))
+	return append(out, text...), nil
+}
+
+// EmptyNetAuthList is the getnetworkauthorizationlist response with zero
+// entries (u16 count 0). That XAM accepts an empty list is unverified.
+var EmptyNetAuthList = []byte{0, 0}
+
+// ContentType is sent on responses; XAM does not check it (the request carries
+// "xon/<service id in hex>", here service 25).
+const ContentType = "xon/19"
+
 // Body is Build for callers that treat an oversized hive as a programming
 // error: it returns nil when the hive is too large.
 func (h Hive) Body() []byte {
@@ -103,32 +134,39 @@ const (
 	PathNetAuth = "/liveinfo/getnetworkauthorizationlist.ashx"
 )
 
+// maxLoggedBody bounds the request body read and logged.
+const maxLoggedBody = 4096
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	reqBody, _ := io.ReadAll(io.LimitReader(r.Body, maxLoggedBody))
 	if h.Log != nil {
+		shown := reqBody
+		if len(shown) > 64 {
+			shown = shown[:64]
+		}
 		h.Log.Info("request", "method", r.Method, "path", r.URL.Path, "query", r.URL.RawQuery,
 			"user_agent", r.Header.Get("User-Agent"), "x_schema_ver", r.Header.Get("X-Schema-Ver"),
-			"remote", r.RemoteAddr)
+			"content_type", r.Header.Get("Content-Type"), "content_length", r.ContentLength,
+			"body_len", len(reqBody), "body_hex", hex.EncodeToString(shown), "remote", r.RemoteAddr)
 	}
 	var body []byte
 	switch strings.ToLower(r.URL.Path) {
 	case strings.ToLower(PathConfig):
 		var err error
-		if body, err = h.Hive.Build(); err != nil {
+		if body, err = h.Hive.Wire(); err != nil {
 			if h.Log != nil {
 				h.Log.Error("hive", "err", err)
 			}
-			http.Error(w, "hive too large", http.StatusInternalServerError)
+			http.Error(w, "hive unavailable", http.StatusInternalServerError)
 			return
 		}
 	case PathNetAuth:
-		// Unverified: the format of the network authorization list is not
-		// known yet, so answer with an empty hive (a lone NUL).
-		body = []byte{0}
+		body = EmptyNetAuthList
 	default:
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", ContentType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
 	if r.Method != http.MethodHead {
