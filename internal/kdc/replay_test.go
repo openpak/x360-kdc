@@ -169,6 +169,11 @@ func TestReplayXETGS2(t *testing.T) {
 	tgs := decodeRep(t, rep, tagTGSRep, msgTGSRep, session, kr.nonce, tagEncTGS)
 	tgsSaved := decodeRep(t, saved, tagTGSRep, msgTGSRep, session, kr.nonce, tagEncTGS)
 	d7, d7Saved := decodeD7(t, tgs, derived), decodeD7(t, tgsSaved, derived)
+	// The saved reply predates services added to D7Services; mark those
+	// available in the saved record too so only the rest must match.
+	for _, id := range D7Services {
+		d7Saved[0x5c+id/4] &^= byte(3 << ((id % 4) * 2))
+	}
 	if !bytes.Equal(d7, d7Saved) {
 		t.Fatalf("D7 differs from the record the firmware accepted:\n%x\n%x", d7, d7Saved)
 	}

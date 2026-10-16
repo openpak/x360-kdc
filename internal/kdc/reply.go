@@ -120,8 +120,11 @@ const (
 )
 
 // Services advertised as available (status 0) in the D7 bitmap: 1 is the
-// default the firmware selects, 20 is the security gateway.
-var D7Services = []int{1, 20}
+// default the firmware selects, 20 is the security gateway, 25 carries the
+// LiveHive request (XRL 0x1300, /liveinfo/GetLiveConfig.ashx) the XLive
+// manager issues right after the logon; without it the manager fails with
+// 0x80151100 and the logon result becomes 0x80151925.
+var D7Services = []int{1, 20, 25}
 
 // d7Record builds the 184-byte record: status 0, SG IPv4 at 0x24 in network
 // order, the two-bit service status map at 0x5C (3 = omitted for everything

@@ -160,6 +160,8 @@ func TestFullExchange(t *testing.T) {
 			want = 0xf3
 		case 5: // service 20: bits 0-1
 			want = 0xfc
+		case 6: // service 25: bits 2-3
+			want = 0xf3
 		}
 		if b != want {
 			t.Fatalf("service map byte %d = %#x, want %#x", i, b, want)
