@@ -151,12 +151,12 @@ func verify(in *initiation, ticketKey []byte, accounts *kdc.Store, ca *rsa.Publi
 		return nil, fmt.Errorf("ticket: %w", err)
 	}
 	if realm, ok := tf[1]; !ok || string(realm.Value) != kdc.AccountRealm {
-		return nil, errors.New("SG ticket service")
+		return nil, fmt.Errorf("SG ticket realm %q", realmString(tf[1]))
 	}
 	if sn, ok := tf[2]; !ok {
-		return nil, errors.New("SG ticket service")
+		return nil, errors.New("SG ticket service missing")
 	} else if n, err := kdc.Principal(sn); err != nil || len(n) != 2 || n[0] != kdc.SGService[0] || n[1] != kdc.SGService[1] {
-		return nil, errors.New("SG ticket service")
+		return nil, fmt.Errorf("SG ticket service %v (want %v)", n, kdc.SGService)
 	}
 	enc, ok := tf[3]
 	if !ok {
@@ -346,3 +346,5 @@ func (in *initiation) reply(v *verified, client netip.Addr, p replyParams) (data
 	datagram = append(make([]byte, 4), prefix...)
 	return append(datagram, chunk(chunkAPRep, apRep)...), material, nil
 }
+
+func realmString(f der.TLV) string { return string(f.Value) }
