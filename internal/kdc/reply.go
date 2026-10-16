@@ -3,7 +3,10 @@ package kdc
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"net/netip"
+	"strconv"
+	"strings"
 	"time"
 
 	"openpak/x360-kdc/internal/der"
@@ -123,13 +126,26 @@ const (
 // default the firmware selects, 20 is the security gateway, 25 carries the
 // LiveHive request (XRL 0x1300, /liveinfo/GetLiveConfig.ashx) the XLive
 // manager issues right after the logon; without it the manager fails with
-// 0x80151100 and the logon result becomes 0x80151925.
+// 0x80151100 and the logon result becomes 0x80151925. Overridable from the
+// environment (X360_KDC_D7_SERVICES) for experiments.
 var D7Services = []int{1, 20, 25}
+
+// D7Extended lists the "extended" service entries at D7 offset 0x7C (four
+// slots of LE u32 id, LE u16 port, u8 status). Unlike the bitmap services,
+// whose port is the service id, these carry an explicit port. Empty by
+// default; X360_KDC_D7_EXTENDED="25:80" moves service 25 here.
+var D7Extended []ExtendedService
+
+// ExtendedService is one D7 extended entry.
+type ExtendedService struct {
+	ID   uint32
+	Port uint16
+}
 
 // d7Record builds the 184-byte record: status 0, SG IPv4 at 0x24 in network
 // order, the two-bit service status map at 0x5C (3 = omitted for everything
-// but D7Services), and the LE u64 cookie 1 at 0xB0. Every other field is
-// zero, as the oracle leaves them.
+// but D7Services), the extended entries at 0x7C, and the LE u64 cookie 1 at
+// 0xB0. Every other field is zero, as the oracle leaves them.
 func d7Record(sg netip.Addr) []byte {
 	rec := make([]byte, D7Len)
 	ip := sg.As4()
@@ -140,6 +156,53 @@ func d7Record(sg netip.Addr) []byte {
 	for _, id := range D7Services {
 		rec[0x5c+id/4] &^= byte(3 << ((id % 4) * 2))
 	}
+	for i, e := range D7Extended {
+		if i >= 4 {
+			break
+		}
+		off := 0x7c + 7*i
+		binary.LittleEndian.PutUint32(rec[off:], e.ID)
+		binary.LittleEndian.PutUint16(rec[off+4:], e.Port)
+		rec[off+6] = 0
+	}
 	binary.LittleEndian.PutUint64(rec[0xb0:], 1)
 	return rec
+}
+
+// ParseD7Services parses "1,20,25"; ParseD7Extended parses "25:80,16:1000".
+func ParseD7Services(s string) ([]int, error) {
+	var out []int
+	for _, f := range strings.Split(s, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		n, err := strconv.Atoi(f)
+		if err != nil || n < 1 || n > 127 {
+			return nil, fmt.Errorf("service id %q", f)
+		}
+		out = append(out, n)
+	}
+	return out, nil
+}
+
+func ParseD7Extended(s string) ([]ExtendedService, error) {
+	var out []ExtendedService
+	for _, f := range strings.Split(s, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		id, port, ok := strings.Cut(f, ":")
+		n, err := strconv.Atoi(id)
+		p, err2 := strconv.Atoi(port)
+		if !ok || err != nil || err2 != nil || n < 1 || p < 1 || p > 65535 {
+			return nil, fmt.Errorf("extended service %q (want id:port)", f)
+		}
+		out = append(out, ExtendedService{ID: uint32(n), Port: uint16(p)})
+	}
+	if len(out) > 4 {
+		return nil, fmt.Errorf("at most four extended services")
+	}
+	return out, nil
 }

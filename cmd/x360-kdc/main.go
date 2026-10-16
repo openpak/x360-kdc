@@ -59,7 +59,23 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Info("x360-kdc listening", "addr", conn.LocalAddr(), "sg", cfg.SGAddress, "accounts", store.Len(), "debug", cfg.Debug)
+	if v := os.Getenv("X360_KDC_D7_SERVICES"); v != "" {
+		ids, err := kdc.ParseD7Services(v)
+		if err != nil {
+			log.Error("X360_KDC_D7_SERVICES", "err", err)
+			os.Exit(2)
+		}
+		kdc.D7Services = ids
+	}
+	if v := os.Getenv("X360_KDC_D7_EXTENDED"); v != "" {
+		ext, err := kdc.ParseD7Extended(v)
+		if err != nil {
+			log.Error("X360_KDC_D7_EXTENDED", "err", err)
+			os.Exit(2)
+		}
+		kdc.D7Extended = ext
+	}
+	log.Info("x360-kdc listening", "addr", conn.LocalAddr(), "sg", cfg.SGAddress, "d7_services", kdc.D7Services, "d7_extended", kdc.D7Extended, "accounts", store.Len(), "debug", cfg.Debug)
 	h := &kdc.Handler{XMACS: priv, CA: ca, Accounts: store, TicketKey: ticketKey, SGAddress: cfg.SGAddress, Now: time.Now, Log: log}
 	if cfg.CoreURL != "" {
 		core, err := accountcore.New(cfg.CoreURL, cfg.CoreToken, nil)

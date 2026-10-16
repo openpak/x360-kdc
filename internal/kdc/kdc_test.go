@@ -429,3 +429,28 @@ func TestAccountRecordLayout(t *testing.T) {
 		t.Fatalf("%x", rec)
 	}
 }
+
+func TestD7Extended(t *testing.T) {
+	ext, err := ParseD7Extended("25:80, 16:1000")
+	if err != nil || len(ext) != 2 || ext[0] != (ExtendedService{25, 80}) || ext[1] != (ExtendedService{16, 1000}) {
+		t.Fatalf("parse: %v %v", ext, err)
+	}
+	if _, err := ParseD7Extended("25"); err == nil {
+		t.Fatal("missing port accepted")
+	}
+	ids, err := ParseD7Services("1, 20,25")
+	if err != nil || len(ids) != 3 || ids[2] != 25 {
+		t.Fatalf("services: %v %v", ids, err)
+	}
+	old, oldExt := D7Services, D7Extended
+	defer func() { D7Services, D7Extended = old, oldExt }()
+	D7Services, D7Extended = []int{1, 20}, ext
+	rec := d7Record(netip.MustParseAddr("10.0.2.2"))
+	if rec[0x5c+6] != 0xff {
+		t.Fatalf("service 25 still in the bitmap: %#x", rec[0x5c+6])
+	}
+	if binary.LittleEndian.Uint32(rec[0x7c:]) != 25 || binary.LittleEndian.Uint16(rec[0x80:]) != 80 || rec[0x82] != 0 ||
+		binary.LittleEndian.Uint32(rec[0x83:]) != 16 || binary.LittleEndian.Uint16(rec[0x87:]) != 1000 {
+		t.Fatalf("extended entries: %x", rec[0x7c:0x98])
+	}
+}
