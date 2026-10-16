@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -137,7 +138,35 @@ type LiveInfoConfig struct {
 	Addr        string // X360_LIVEINFO_ADDR, default :25 (TCP)
 	SMRevision  string // X360_LIVEINFO_SMREVISION: optional hex; empty omits the key
 	PollMinutes int    // X360_LIVEINFO_POLL_MINUTES, 30..240, default 120
-	Debug       bool   // X360_LIVEINFO_DEBUG
+	// Extra are X360_LIVEINFO_HIVE_EXTRA pairs ("key=value;key=value"), sorted by key.
+	Extra [][2]string
+	Debug bool // X360_LIVEINFO_DEBUG
+}
+
+// parseHiveExtra parses "key=value;key=value" into pairs sorted by key. Empty
+// input means no extra keys. Keys must be non-empty and unique; the value may
+// contain '=' (the hive builder escapes it).
+func parseHiveExtra(v string) ([][2]string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return nil, nil
+	}
+	var out [][2]string
+	seen := map[string]bool{}
+	for _, pair := range strings.Split(v, ";") {
+		k, val, ok := strings.Cut(pair, "=")
+		k = strings.TrimSpace(k)
+		if !ok || k == "" {
+			return nil, fmt.Errorf("X360_LIVEINFO_HIVE_EXTRA: %q is not key=value", pair)
+		}
+		if seen[k] {
+			return nil, fmt.Errorf("X360_LIVEINFO_HIVE_EXTRA: key %q given twice", k)
+		}
+		seen[k] = true
+		out = append(out, [2]string{k, strings.TrimSpace(val)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i][0] < out[j][0] })
+	return out, nil
 }
 
 // LoadLiveInfo reads the LiveHive environment through getenv.
@@ -163,5 +192,10 @@ func LoadLiveInfo(getenv func(string) string) (*LiveInfoConfig, error) {
 		}
 		c.PollMinutes = n
 	}
+	extra, err := parseHiveExtra(getenv("X360_LIVEINFO_HIVE_EXTRA"))
+	if err != nil {
+		return nil, err
+	}
+	c.Extra = extra
 	return c, nil
 }

@@ -106,6 +106,36 @@ func TestLiveInfoConfig(t *testing.T) {
 	}
 }
 
+func TestLiveInfoHiveExtra(t *testing.T) {
+	c, err := LoadLiveInfo(env(nil))
+	if err != nil || c.Extra != nil {
+		t.Fatalf("unset extra: %+v %v", c, err)
+	}
+	c, err = LoadLiveInfo(env(map[string]string{"X360_LIVEINFO_HIVE_EXTRA": " XboxXPassportUriRoot=http://145.241.199.19/passport;" +
+		"LiveServiceUrl.presence=http://145.241.199.19/presence;Eq=a=b "}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]string{
+		{"Eq", "a=b"},
+		{"LiveServiceUrl.presence", "http://145.241.199.19/presence"},
+		{"XboxXPassportUriRoot", "http://145.241.199.19/passport"},
+	}
+	if len(c.Extra) != len(want) {
+		t.Fatalf("extra %v", c.Extra)
+	}
+	for i := range want {
+		if c.Extra[i] != want[i] {
+			t.Fatalf("extra[%d] %v, want %v", i, c.Extra[i], want[i])
+		}
+	}
+	for _, v := range []string{"novalue", "a=1;;b=2", "=x", "  =x", "a=1;b", "a=1;a=2"} {
+		if _, err := LoadLiveInfo(env(map[string]string{"X360_LIVEINFO_HIVE_EXTRA": v})); err == nil {
+			t.Fatalf("accepted %q", v)
+		}
+	}
+}
+
 func TestAccountCoreConfig(t *testing.T) {
 	c, err := Load(env(with(map[string]string{"X360_KDC_ACCOUNT_CORE_URL": "http://core:7000", "X360_KDC_ACCOUNT_CORE_TOKEN": "k"})))
 	if err != nil || c.CoreURL != "http://core:7000" || c.CoreToken != "k" {

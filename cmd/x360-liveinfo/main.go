@@ -28,7 +28,7 @@ func main() {
 		log.Error("config", "err", err)
 		os.Exit(2)
 	}
-	h := &liveinfo.Handler{Hive: liveinfo.Hive{SMRevision: cfg.SMRevision, PollMinutes: cfg.PollMinutes}, Log: log}
+	h := &liveinfo.Handler{Hive: liveinfo.Hive{SMRevision: cfg.SMRevision, PollMinutes: cfg.PollMinutes, Extra: cfg.Extra}, Log: log}
 	if _, err := h.Hive.Build(); err != nil {
 		log.Error("hive", "err", err)
 		os.Exit(2)

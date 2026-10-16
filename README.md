@@ -174,6 +174,12 @@ body hex for Content-Length up to 64. Config: `X360_LIVEINFO_ADDR` (default `:25
 `X360_LIVEINFO_SMREVISION`, `X360_LIVEINFO_POLL_MINUTES` (default 120), `X360_LIVEINFO_DEBUG`. Code:
 `internal/liveinfo`, `cmd/x360-liveinfo`.
 
+`X360_LIVEINFO_HIVE_EXTRA` adds keys to the hive as `key=value` pairs separated by `;` (values may contain
+`/`, `:` and `.`; `^`, `;` and `=` are escaped). The pairs are emitted after the known keys, sorted by key;
+empty keys, pairs without `=` and duplicate keys are rejected at startup. The point is to advertise OpenPak
+service roots: the dash reads `LiveServiceUrl.*` and `*UriRoot` keys from the hive to find the other services.
+Nothing is set by default; the example value is in `example.env`.
+
 ## Dev key material
 
 Never commit keys. The dev set lives in `../scratch/wharf/keys/` (mode 0600 where private) and was made with

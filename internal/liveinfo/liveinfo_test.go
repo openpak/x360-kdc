@@ -91,6 +91,23 @@ func TestWireExactBytes(t *testing.T) {
 	}
 }
 
+func TestHandlerExtraKeys(t *testing.T) {
+	h := &Handler{Hive: Hive{PollMinutes: 120, Extra: [][2]string{
+		{"LiveServiceUrl.presence", "http://145.241.199.19/presence"},
+		{"XboxXPassportUriRoot", "http://145.241.199.19/passport"},
+	}}}
+	rec := post(h, PathConfig, []byte{6, 0, 'x', 'e', 'n', 'o', 'n', 0})
+	if rec.Code != 200 {
+		t.Fatalf("config: %d", rec.Code)
+	}
+	text := rec.Body.String()
+	for _, want := range []string{"LiveServiceUrl.presence=http://145.241.199.19/presence", "XboxXPassportUriRoot=http://145.241.199.19/passport"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("xon body missing %q: %q", want, text)
+		}
+	}
+}
+
 func TestWireEmptyAndLarge(t *testing.T) {
 	if _, err := (Hive{}).Wire(); !errors.Is(err, ErrEmpty) {
 		t.Fatalf("empty: %v", err)
