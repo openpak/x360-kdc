@@ -26,8 +26,18 @@ Status, 2026-10-16: a port of OpenPak's Python oracle (`scratch/wharf/kdcstub/{k
 the firmware accepted live on its first attempt for all three stages (MACS 1167 -> 545 bytes, XEAS 353 -> 550,
 TGS 841 -> 772; `scratch/wharf/run/logs/kdc-xetgs2/`). This Go server replays those captures in its tests:
 every request verifies with the real keys, every reply has the same DER shape as the accepted one, and the
-deterministic records (account record, service record) are byte-identical. It has **not** yet been pointed at
-by Wharf itself, not tried by a real console, and not deployed.
+deterministic records (account record, service record) are byte-identical.
+
+Live verification, 2026-10-16: Wharf (the real 17559 dashboard) completed **MACS** (1167-byte request, reply
+returned), **XEAS** (346 -> reply) and **XETGS `sg/S0`** (841 -> reply) against this server on the first attempt
+of each. The security-gateway stand-in then accepted the `sg/S0` ticket this server issued (same ticket key).
+D7 now advertises services **1, 20 and 25** (25 = LiveHive `/liveinfo`, XRL request 0x1300, needed right after
+the logon; commit c99de28). Not yet tried by a real console.
+
+Release and deployment, 2026-10-16: tag `v0.1.0`, image `ghcr.io/openpak/x360-kdc` (tags `0.1.0`, `0.1`,
+`latest`) built by the release workflow. Deployed on the secondary host `draughts-server` (145.241.228.207)
+as a rootless Podman 5.7 quadlet (see "Deployment"). No console has used it yet, and no OpenPak DNS entry
+points the three names at it yet.
 
 ## Protocol
 
@@ -68,7 +78,7 @@ name the same principal, be within 5 minutes, carry no subkey, and hold an MD5 (
 request body. 0xCE and 0xD6 (usage 1201, plaintext exactly 126 bytes, version 6) use `D(session, nonce)`;
 the four user ids in D6 must be zero (user sign-in is not implemented and is refused, never silently granted).
 Reply: TGS-REP with padata 0xD7 = EncryptedData of the 184-byte service record under `D(session, nonce)`
-usage 1202 (cipher exactly 208 bytes): status 0, the SG IPv4 at 0x24, services **1 and 20** available in the
+usage 1202 (cipher exactly 208 bytes): status 0, the SG IPv4 at 0x24, services **1, 20 and 25** available in the
 two-bit status map at 0x5C (all others omitted), cookie 1 at 0xB0; plus a fresh `sg/S0` ticket and the enc-part
 under the TGT session key usage 8.
 
@@ -122,6 +132,29 @@ can hold 127.0.0.1:18088: stop the Python oracle (`kdcstub/xetgs.py`) first. Exp
 kind=MACS`, one `kind=XEAS`, one `kind=TGS`, then the firmware moves on to the SG step (`XeCryptBnDwLeDhModExp`
 in the guest log), which no server implements yet. The default `X360_KDC_SG_ADDRESS=10.0.2.2` is right only
 for this setup.
+
+## Deployment
+
+Secondary host `draughts-server` (145.241.228.207), rootless Podman 5.7, `ubuntu` user. Quadlet
+`~/.config/containers/systemd/openpak-x360-kdc.container`:
+
+- `Network=host`, `ReadOnly`, `NoNewPrivileges`, `DropCapability=ALL` plus `AddCapability=NET_BIND_SERVICE`.
+  The image binary carries the `cap_net_bind_service` file capability, and exec fails with EPERM when that
+  capability is not permitted, even though the service listens on 10088.
+- `UserNS=keep-id:uid=100,gid=101` (the image's `app` user).
+- Volumes: `~/openpak/deploy/x360-kdc/secrets:/run/secrets:ro` (`xmacs-dev-private.pem`,
+  `console-ca-public.pem`, mode 0600) and `~/openpak/deploy/x360-kdc/state:/var/lib/x360-kdc:rw`
+  (`accounts.json`, `ticket-key.bin`).
+- Environment: `X360_KDC_ADDR=:10088`, `X360_KDC_SG_ADDRESS=145.241.228.207`. `AutoUpdate=registry`.
+
+Rootless Podman cannot bind UDP 88 in the host network namespace. `/etc/openpak/x360-kdc.nft` (own nft table
+`ip x360kdc`, `udp dport 88 redirect to :10088` in prerouting) and `/etc/openpak/x360-kdc-fw.sh` front it.
+The script runs from `openpak-x360-kdc-fw.service` (oneshot, enabled) and inserts the INPUT accept for 10088
+before the first REJECT, idempotently. The listener is verified; the dev key material above is what it runs
+with until production provisioning exists.
+
+To point Wharf at the deployed server instead of a local one, use `nic_dns_hosts=...=145.241.228.207` and
+no port map.
 
 ## Dev key material
 
