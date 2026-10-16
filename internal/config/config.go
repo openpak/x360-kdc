@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -82,6 +83,9 @@ func isTrue(v string) bool {
 // dials on the address the D7 record carries.
 const DefaultGatewayAddr = ":3074"
 
+// DefaultServiceURL is the LiveHive backend the service transport proxies to.
+const DefaultServiceURL = "http://openpak-x360-liveinfo:10025"
+
 // GatewayConfig is the x360-gateway configuration. It shares the KDC's ticket
 // key file, account store and console CA trust anchor, read-only.
 type GatewayConfig struct {
@@ -89,20 +93,29 @@ type GatewayConfig struct {
 	TicketKey string // X360_GATEWAY_TICKET_KEY: the KDC's 16-byte ticket key file (never created here)
 	Accounts  string // X360_GATEWAY_ACCOUNTS: the KDC's account store, re-read on each initiation
 	ConsoleCA string // X360_GATEWAY_CONSOLE_CA: console CA public key PEM, to re-verify stored certificates
-	Debug     bool   // X360_GATEWAY_DEBUG
+	// ServiceURL is the HTTP backend of the service transport (X360_GATEWAY_SERVICE_URL).
+	ServiceURL string
+	Debug      bool // X360_GATEWAY_DEBUG
 }
 
 // LoadGateway reads the gateway environment through getenv.
 func LoadGateway(getenv func(string) string) (*GatewayConfig, error) {
 	c := &GatewayConfig{
-		Addr:      getenv("X360_GATEWAY_ADDR"),
-		TicketKey: getenv("X360_GATEWAY_TICKET_KEY"),
-		Accounts:  getenv("X360_GATEWAY_ACCOUNTS"),
-		ConsoleCA: getenv("X360_GATEWAY_CONSOLE_CA"),
-		Debug:     isTrue(getenv("X360_GATEWAY_DEBUG")),
+		Addr:       getenv("X360_GATEWAY_ADDR"),
+		TicketKey:  getenv("X360_GATEWAY_TICKET_KEY"),
+		Accounts:   getenv("X360_GATEWAY_ACCOUNTS"),
+		ConsoleCA:  getenv("X360_GATEWAY_CONSOLE_CA"),
+		Debug:      isTrue(getenv("X360_GATEWAY_DEBUG")),
+		ServiceURL: strings.TrimSpace(getenv("X360_GATEWAY_SERVICE_URL")),
 	}
 	if c.Addr == "" {
 		c.Addr = DefaultGatewayAddr
+	}
+	if c.ServiceURL == "" {
+		c.ServiceURL = DefaultServiceURL
+	}
+	if u, err := url.Parse(c.ServiceURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("X360_GATEWAY_SERVICE_URL %q is not an http(s) URL", c.ServiceURL)
 	}
 	for _, r := range []struct{ v, name string }{
 		{c.TicketKey, "X360_GATEWAY_TICKET_KEY"},

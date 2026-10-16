@@ -62,8 +62,21 @@ func TestGatewayConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Addr != ":3074" || c.TicketKey != "t.bin" || c.Accounts != "a.json" || c.ConsoleCA != "ca.pem" || c.Debug {
+	if c.Addr != ":3074" || c.TicketKey != "t.bin" || c.Accounts != "a.json" || c.ConsoleCA != "ca.pem" || c.Debug || c.ServiceURL != DefaultServiceURL {
 		t.Fatalf("gateway config: %+v", c)
+	}
+}
+
+func TestGatewayServiceURL(t *testing.T) {
+	base := map[string]string{"X360_GATEWAY_TICKET_KEY": "t", "X360_GATEWAY_ACCOUNTS": "a", "X360_GATEWAY_CONSOLE_CA": "c"}
+	base["X360_GATEWAY_SERVICE_URL"] = "http://145.241.199.19"
+	c, err := LoadGateway(env(base))
+	if err != nil || c.ServiceURL != "http://145.241.199.19" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	base["X360_GATEWAY_SERVICE_URL"] = "145.241.199.19"
+	if _, err := LoadGateway(env(base)); err == nil {
+		t.Fatal("scheme-less URL accepted")
 	}
 }
 

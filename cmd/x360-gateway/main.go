@@ -57,8 +57,8 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Info("x360-gateway listening", "addr", conn.LocalAddr(), "accounts", store.Len(), "debug", cfg.Debug)
-	g := &gateway.Gateway{TicketKey: ticketKey, AccountsPath: cfg.Accounts, CA: ca, Now: time.Now, Log: log}
+	log.Info("x360-gateway listening", "addr", conn.LocalAddr(), "accounts", store.Len(), "service_url", cfg.ServiceURL, "debug", cfg.Debug)
+	g := &gateway.Gateway{TicketKey: ticketKey, AccountsPath: cfg.Accounts, CA: ca, Now: time.Now, Log: log, ServiceURL: cfg.ServiceURL}
 	srv := &gateway.Server{Gateway: g, Log: log}
 	if err := srv.Serve(ctx, conn); err != nil {
 		log.Error("serve", "err", err)
