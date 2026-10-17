@@ -95,6 +95,16 @@ func (s *SignInService) SignIn(ctx context.Context, r SignInRequest) (*SignIn, e
 	if acct == "" || st != StatusActive {
 		return nil, fmt.Errorf("%w: account not active", ErrBadCredential)
 	}
+	return s.Link(ctx, acct, r)
+}
+
+// Link is SignIn after the credentials were verified elsewhere (the caller
+// holds the verified account id): it claims the console and the profile for
+// the account and publishes the gamertag. Email and Password are not used.
+func (s *SignInService) Link(ctx context.Context, acct string, r SignInRequest) (*SignIn, error) {
+	if acct == "" || r.ConsoleDigits == "" || r.XUID == 0 {
+		return nil, errors.New("link: account, console and xuid are required")
+	}
 	cl, err := s.claim(ctx, acct, ConsoleNamespace, r.ConsoleDigits, ErrConsoleOwned)
 	if err != nil {
 		return nil, fmt.Errorf("console link: %w", err)
