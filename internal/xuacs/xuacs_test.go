@@ -298,6 +298,15 @@ func TestFullFlow(t *testing.T) {
 	fb := binary.LittleEndian.AppendUint64(nil, xuid)
 	fb = binary.LittleEndian.AppendUint16(fb, 1)
 	fb = append(fb, tok...)
+	// 0x627 account info: gamertag first, empty strings, DOB, country US, 4 flag bytes
+	ab := append(append(append([]byte{}, tok...), make([]byte, 8)...), 0, 0, 0, 0)
+	if st, b := r.post(PathAccountInfo, ab); st != 200 || !bytes.HasPrefix(b, str(nil, "ann")) ||
+		len(b) != 3+len("ann")+3+8+10*3+2+4 || !bytes.Equal(b[len(b)-6:], []byte{103, 0, 0, 0, 0, 0}) {
+		t.Fatalf("0x627: %d %x", st, b)
+	}
+	if st, _ := r.post(PathAccountInfo, ab[:39]); st != 400 {
+		t.Fatalf("0x627 short body: %d", st)
+	}
 	if st, b := r.post(PathFamily, fb); st != 200 || !bytes.Equal(b, []byte{0, 0}) {
 		t.Fatalf("0x1707: %d %x", st, b)
 	}

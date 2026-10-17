@@ -22,6 +22,8 @@
 - 2026-10-17: gateway `X360_GATEWAY_SERVICE_URLS` (`port=url;port=url`) routes tunnelled connections by destination
   port, `X360_GATEWAY_SERVICE_URL` stays the default; upstream requests carry `X-X360-Account`.
 - 2026-10-17: D7 default services are now 1, 20, 25 and 5 (xuacs).
+- 2026-10-17: v0.7.3 xuacs: 0x627 XeGetAccountInfoFromPassport (asked by the Account Recovery time-zone step before
+  0x63F): gamertag as first name, empty strings, DOB 2000-01-01, country US.
 
 - 2026-10-16: LiveHive responses are now XRL "xon" binary bodies (reverse-engineered from the xam.xex schema
   bytecode and response decoder, notes `xon-hive-format.md`): GetLiveConfig = u32 total, u16 chunk count, chunks

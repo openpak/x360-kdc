@@ -45,6 +45,7 @@ const (
 	PathGamertag     = "/xuacs/XeGetLinkedGamertag.ashx"                   // 0x60E
 	PathUserType     = "/xuacs/XeGetUserType.ashx"                         // 0x624
 	PathFamily       = "/xuacs/EnumFamilyMembers.ashx"                     // 0x1707
+	PathAccountInfo  = "/xuacs/XeGetAccountInfoFromPassport.ashx"          // 0x627
 	PathRecover      = "/xuacs/RecoverAccount.ashx"                        // 0x63F, 0x649
 )
 
@@ -172,6 +173,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		out, err = h.userType(body)
 	case strings.ToLower(PathFamily):
 		out, err = h.family(body)
+	case strings.ToLower(PathAccountInfo):
+		out, err = h.accountInfo(r.Context(), body)
 	case strings.ToLower(PathRecover):
 		out, err = h.recover(r.Context(), body, r.Header.Get(gateway.AccountHeader))
 	default:
@@ -504,6 +507,41 @@ func (h *Handler) family(body []byte) ([]byte, error) {
 		return nil, bad("0x1707: malformed request (%d bytes)", len(body))
 	}
 	return []byte{0, 0}, nil // no family members
+}
+
+// ---- 0x627 ----
+
+// accountInfo answers 0x627 XeGetAccountInfoFromPassport, which the Account
+// Recovery applet's time-zone step asks (Lua GetUserLocaleInfoFromPassport ->
+// Xbox.Account.GetAccountInfo) before 0x63F. Request: u8[28] token, u64
+// machine id, u32 title id. Reply per the XAM 17559 response schema (desc 187):
+// first name, last name, u64 date of birth (FILETIME), member name, a 6-string
+// address block, a 3-string block, u16 country, 4 u8 flags; strings are
+// "u16 len | UTF-8 | NUL". The applet reads FName, DOB and the byte at struct
+// offset 0x4a (CountryId, 0x53 = unknown -> 103/US); we have none of this data
+// beyond the gamertag, so the rest is empty, DOB 2000-01-01, country US.
+func (h *Handler) accountInfo(ctx context.Context, body []byte) ([]byte, error) {
+	r := &reader{b: body}
+	tok := r.take(28)
+	r.u64()
+	r.u32()
+	if r.bad || len(r.b) != 0 {
+		return nil, bad("0x627: malformed request (%d bytes)", len(body))
+	}
+	_, _, tag, err := h.identity(ctx, tok)
+	if err != nil {
+		return nil, err
+	}
+	const dob2000 = 125911584000000000 // FILETIME of 2000-01-01T00:00Z
+	out := str(nil, tag)
+	out = str(out, "")
+	out = binary.LittleEndian.AppendUint64(out, dob2000)
+	out = str(out, "")
+	for i := 0; i < 9; i++ {
+		out = str(out, "")
+	}
+	out = binary.LittleEndian.AppendUint16(out, 103) // XC_COUNTRY_US
+	return append(out, 0, 0, 0, 0), nil
 }
 
 // ---- 0x63F / 0x649 ----
