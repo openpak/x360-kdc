@@ -2,6 +2,7 @@ package xuacs
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -88,6 +89,12 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			status(accountcore.CodeUnauthenticated)
 			return
+		}
+	case "Identity/ListAccounts":
+		if in[1] == "" {
+			out = pbStr(pbStr(pbStr(nil, 1, string(pbStr(nil, 1, "A-ann"))), 1, string(pbStr(nil, 1, "A-bob"))), 2, "A-bob")
+		} else {
+			out = nil
 		}
 	case "Links/GetActiveLinkByAccount":
 		for _, l := range f.links {
@@ -519,6 +526,26 @@ func TestGamertagFrom(t *testing.T) {
 	for in, want := range map[string]string{"ann@x.org": "ann", "9lives_cat.x@x": "livescatx", "averyveryverylongname@x": "averyveryverylo", "123@x": "Player0001"} {
 		if got := gamertagFrom(in, 1); got != want {
 			t.Errorf("%q: %q want %q", in, got, want)
+		}
+	}
+}
+
+func TestReconcileProjectsAndIsAdoptable(t *testing.T) {
+	r := newRig(t, t.TempDir())
+	for i := 0; i < 2; i++ { // idempotent
+		seen, linked, failed, err := r.h.ReconcileAll(context.Background())
+		if err != nil || seen != 2 || failed != 0 || (i == 0 && linked != 2) || (i == 1 && linked != 0) {
+			t.Fatalf("pass %d: seen=%d linked=%d failed=%d err=%v", i, seen, linked, failed, err)
+		}
+	}
+	x, _ := r.h.Store.OnlineXUID("A-ann", 0)
+	l := r.core.links[accountcore.UserNamespace+"/"+hex16(x)]
+	if l == nil || l.AccountID != "A-ann" || l.State != accountcore.StateActive {
+		t.Fatalf("projected link: %+v", l)
+	}
+	for k := range r.core.links {
+		if strings.HasPrefix(k, accountcore.ConsoleNamespace+"/") {
+			t.Fatalf("console link invented: %s", k)
 		}
 	}
 }

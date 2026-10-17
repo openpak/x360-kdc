@@ -324,3 +324,44 @@ func parseFields(b []byte) fields {
 	}
 	return f
 }
+
+// ListAccounts returns one page of active account ids from Identity.ListAccounts
+// (keyset cursor: pass the previous next as after; next is empty at the end).
+// limit is capped by the core at 500.
+func (c *Client) ListAccounts(ctx context.Context, after string, limit int) (ids []string, next string, err error) {
+	var req pb
+	req.str(1, after)
+	if limit > 0 {
+		req = binary.AppendUvarint(req, 2<<3)
+		req = binary.AppendUvarint(req, uint64(limit))
+	}
+	resp, err := c.call(ctx, identityService+"ListAccounts", req)
+	if err != nil {
+		return nil, "", err
+	}
+	for b := resp; len(b) > 0; {
+		tag, n := binary.Uvarint(b)
+		if n <= 0 {
+			break
+		}
+		b = b[n:]
+		if tag&7 != 2 {
+			break // the response holds only length-delimited fields
+		}
+		l, n := binary.Uvarint(b)
+		if n <= 0 || uint64(len(b)-n) < l {
+			break
+		}
+		body := b[n : n+int(l)]
+		b = b[n+int(l):]
+		switch tag >> 3 {
+		case 1:
+			if id := parseFields(body).str(1); id != "" {
+				ids = append(ids, id)
+			}
+		case 2:
+			next = string(body)
+		}
+	}
+	return ids, next, nil
+}

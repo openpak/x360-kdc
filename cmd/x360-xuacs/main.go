@@ -59,6 +59,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	log.Info("x360-xuacs listening", "addr", ln.Addr(), "state", cfg.State, "rsa_key", cfg.RSAKey, "debug", cfg.Debug)
+	go h.RunReconcile(ctx, time.Minute)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()

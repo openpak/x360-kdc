@@ -76,6 +76,10 @@ type Core interface {
 	ActiveXboxLink(ctx context.Context, account string) (*accountcore.Link, error)
 	// Enrol links the console and the profile to the account.
 	Enrol(ctx context.Context, account string, r accountcore.SignInRequest) error
+	// ListAccounts returns one page of active account ids (keyset cursor).
+	ListAccounts(ctx context.Context, after string, limit int) (ids []string, next string, err error)
+	// LinkProfile claims the account's x360 profile link without a console.
+	LinkProfile(ctx context.Context, account string, xuid uint64) error
 }
 
 // CoreClient adapts the account core client to Core.
@@ -97,6 +101,15 @@ func (c CoreClient) ActiveXboxLink(ctx context.Context, account string) (*accoun
 
 func (c CoreClient) Enrol(ctx context.Context, account string, r accountcore.SignInRequest) error {
 	_, err := (&accountcore.SignInService{Core: c.Client}).Link(ctx, account, r)
+	return err
+}
+
+func (c CoreClient) ListAccounts(ctx context.Context, after string, limit int) ([]string, string, error) {
+	return c.Client.ListAccounts(ctx, after, limit)
+}
+
+func (c CoreClient) LinkProfile(ctx context.Context, account string, xuid uint64) error {
+	_, err := (&accountcore.SignInService{Core: c.Client}).LinkProfile(ctx, account, xuid)
 	return err
 }
 

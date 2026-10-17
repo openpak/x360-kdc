@@ -25,6 +25,13 @@
 - 2026-10-17: v0.7.3 xuacs: 0x627 XeGetAccountInfoFromPassport (asked by the Account Recovery time-zone step before
   0x63F): gamertag as first name, empty strings, DOB 2000-01-01, country US.
 
+- 2026-10-17: v0.7.4 xuacs reconcile loop (startup, then every 60 s): every active account in the core (Identity.ListAccounts,
+  keyset pages of 200) gets an active `x360` profile link with its own online XUID (stored or derived by
+  `Store.OnlineXUID`), console-less. No `x360-console` link is ever invented (the console subject comes from the
+  console certificate); a later 0x63F enrolment finds and reuses the profile link. Accounts that already have an
+  active link, or whose XUID is held by another account, are skipped; one failure never stops the pass; logs
+  counts only.
+
 - 2026-10-16: LiveHive responses are now XRL "xon" binary bodies (reverse-engineered from the xam.xex schema
   bytecode and response decoder, notes `xon-hive-format.md`): GetLiveConfig = u32 total, u16 chunk count, chunks
   of u16 length + text (little-endian, no NUL), 42 bytes for the default hive; `getnetworkauthorizationlist`

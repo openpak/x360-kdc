@@ -149,3 +149,15 @@ func (s *SignInService) claim(ctx context.Context, account, ns, subject string, 
 	}
 	return r.LinkID, nil
 }
+
+// LinkProfile claims only the online-XUID profile (x360 namespace) for an
+// account, with no console. The profile link is the account's own identity on
+// the network (the XUID is issued to the account, not derived from a console
+// certificate), so a later console enrolment of the same account finds this
+// link and reuses it. A profile held by another account returns ErrUserOwned.
+func (s *SignInService) LinkProfile(ctx context.Context, acct string, xuid uint64) (string, error) {
+	if acct == "" || xuid == 0 {
+		return "", errors.New("link profile: account and xuid are required")
+	}
+	return s.claim(ctx, acct, UserNamespace, fmt.Sprintf("%016x", xuid), ErrUserOwned)
+}
