@@ -28,7 +28,7 @@ Layout:
   flows whose payload starts `01 00 00 00` are redirected to UDP 13074
   (`x360-xexds.nft`, `x360-xexds-fw.sh`). Everything else still reaches xb-gateway.
 
-Each redirect lives in its own nft table (`x360kdc`, `x360sg`, `x360`), so each
+Each redirect lives in its own nft table (`x360kdc`, `x360gw`, `x360`), so each
 one can be deleted without touching the others. Each `*-fw.sh` also inserts an
 iptables INPUT accept for its port ahead of the first REJECT.
 
@@ -109,3 +109,12 @@ initiation cannot be told apart from an original-Xbox user-session initiation at
 first 12 payload bytes), and the redirect stole those sessions from xb-gateway. XAM also ignores an
 extended D7 entry for service 20 with another port (it always dials 3074), so the 360 gateway needs its
 own public IPv4 (then `X360_KDC_SG_ADDRESS` points at it and the gateway listens on 3074 there).
+
+## 2026-10-17: the 360 gateway has its own public address
+
+143.47.231.210 (private 10.0.0.83, on ens3) is attached to the secondary. Table `ip x360gw`
+(`secondary/x360-gateway.nft`, applied by `openpak-x360-gateway-fw.service`) redirects UDP 3074 for that
+destination address to :13075, where x360-gateway listens. The KDC advertises 143.47.231.210 in the D7
+record (`X360_KDC_SG_ADDRESS`). Matching is by destination address only, so xb-gateway on 10.0.0.22 and
+the xexds `ip x360` rule are untouched. The old `x360sg` payload-matching table is gone for good. The
+UDP-over-TCP tunnel (`deploy/x360-kdc/udp-over-tcp.py` on the box) stays as a fallback only.

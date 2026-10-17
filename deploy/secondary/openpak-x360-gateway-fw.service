@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenPak x360-gateway: redirect 360 SG initiations from UDP 3074 to 13075
+Description=OpenPak x360-gateway: redirect UDP 3074 on the gateway's own public address (143.47.231.210) to 13075
 After=network-online.target netfilter-persistent.service
 Wants=network-online.target
 

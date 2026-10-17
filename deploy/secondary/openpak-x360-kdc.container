@@ -27,7 +27,7 @@ Environment=X360_KDC_XMACS_KEY=/run/secrets/xmacs-dev-private.pem
 Environment=X360_KDC_CONSOLE_CA=/run/secrets/console-ca-public.pem
 Environment=X360_KDC_ACCOUNTS=/var/lib/x360-kdc/accounts.json
 Environment=X360_KDC_TICKET_KEY=/var/lib/x360-kdc/ticket-key.bin
-Environment=X360_KDC_SG_ADDRESS=145.241.228.207
+Environment=X360_KDC_SG_ADDRESS=143.47.231.210
 Environment=X360_KDC_D7_SERVICES=1,20
 Environment=X360_KDC_D7_EXTENDED=25:80
 
