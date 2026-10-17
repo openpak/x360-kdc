@@ -97,3 +97,6 @@
   refused it and the console timed out (80151909). With no gamertag, x360-xuacs lists every profile issued on the
   console and the KDC takes the one whose K_u opens the encrypted timestamp (the WLID ticket check still binds it
   to the account).
+
+- 2026-10-17: v0.8.4 padata 0xDA's length prefix is little-endian on the wire (live: 91-byte plaintext, `59 00`
+  + the 89-byte ticket); the KDC read it big-endian and refused "DA length". Both orders accepted, LE first.

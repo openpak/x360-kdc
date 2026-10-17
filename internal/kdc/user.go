@@ -329,10 +329,20 @@ func (h *Handler) userAS(r *kdcReq, cname []string) ([]byte, []any, error) {
 	if err != nil {
 		return nil, attrs, errors.New("user AS: DA checksum")
 	}
-	if len(plain) < 2 || int(binary.BigEndian.Uint16(plain)) > len(plain)-2 || binary.BigEndian.Uint16(plain) > maxDATicket {
+	// u16 length, then the ticket. The live 17559 request carries the length
+	// little-endian (91-byte plaintext, 59 00 + 89 bytes); big-endian is kept
+	// for the order the static reading suggested.
+	if len(plain) < 2 {
 		return nil, attrs, errors.New("user AS: DA length")
 	}
-	ticket := plain[2 : 2+binary.BigEndian.Uint16(plain)]
+	n := int(binary.LittleEndian.Uint16(plain))
+	if n > len(plain)-2 {
+		n = int(binary.BigEndian.Uint16(plain))
+	}
+	if n > len(plain)-2 || n > maxDATicket || n == 0 {
+		return nil, attrs, fmt.Errorf("user AS: DA length (plaintext %d bytes, head %x)", len(plain), plain[:2])
+	}
+	ticket := plain[2 : 2+n]
 	tAcct, tOnline, err := h.Directory.VerifyTicket(ctx, ticket)
 	if err != nil {
 		return nil, attrs, fmt.Errorf("user AS: WLID ticket: %w", err)

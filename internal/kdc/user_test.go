@@ -35,7 +35,7 @@ func (f *fakeDir) VerifyTicket(_ context.Context, t []byte) (string, uint64, err
 
 func userASReq(name string, parentTGT, ku, ticket []byte, nonce uint32, at time.Time) []byte {
 	pa82 := der.Seq(der.Ctx(0, der.Integer(0)), der.Ctx(1, parentTGT))
-	da := binary.BigEndian.AppendUint16(nil, uint16(len(ticket)))
+	da := binary.LittleEndian.AppendUint16(nil, uint16(len(ticket)))
 	da = append(da, ticket...)
 	pa := []paItem{
 		{PaParentTGT, pa82},
