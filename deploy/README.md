@@ -101,3 +101,11 @@ systemctl --user start openpak-x360-liveinfo.service openpak-x360-notice.service
 ```
 
 Quadlet-generated units take the container name with a `.service` suffix.
+
+## 2026-10-17: the 3074 redirect for the 360 gateway is withdrawn
+
+`secondary/x360-gateway.nft` and `openpak-x360-gateway-fw.service` must NOT be installed: the Xbox 360
+initiation cannot be told apart from an original-Xbox user-session initiation at fixed offsets (same
+first 12 payload bytes), and the redirect stole those sessions from xb-gateway. XAM also ignores an
+extended D7 entry for service 20 with another port (it always dials 3074), so the 360 gateway needs its
+own public IPv4 (then `X360_KDC_SG_ADDRESS` points at it and the gateway listens on 3074 there).
