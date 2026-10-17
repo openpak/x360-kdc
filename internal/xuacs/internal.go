@@ -69,9 +69,31 @@ type errBody struct {
 // normTag compares gamertags the way the user AS-REQ cname renders them.
 func normTag(s string) string { return strings.ToLower(strings.ReplaceAll(s, " ", "_")) }
 
+type profileOut struct {
+	Account string `json:"account"`
+	Online  string `json:"online_xuid"`
+	Key     string `json:"xenon_key"`
+}
+
+// userKey answers the profile issued as gamertag on console. An empty gamertag
+// (the 17559 user AS-REQ can carry "@xbox.com") lists every profile issued on
+// that console under "profiles"; the KDC picks the one whose key opens the request.
 func (h *Handler) userKey(r *http.Request, console, gamertag string) (any, int) {
-	if consoleDigits(console+"@x") == "" || gamertag == "" {
-		return errBody{"console and gamertag required"}, http.StatusBadRequest
+	if consoleDigits(console+"@x") == "" {
+		return errBody{"console required"}, http.StatusBadRequest
+	}
+	if gamertag == "" {
+		var list []profileOut
+		for _, p := range h.Store.ConsoleProfiles(console) {
+			list = append(list, profileOut{p.Account, fmt.Sprintf("%016x", p.Online), hex.EncodeToString(p.Key)})
+		}
+		h.log().Info("internal user-key: all profiles on console", "console", console, "profiles", len(list))
+		if len(list) == 0 {
+			return errBody{"no profile on that console"}, http.StatusNotFound
+		}
+		return struct {
+			Profiles []profileOut `json:"profiles"`
+		}{list}, http.StatusOK
 	}
 	profiles := h.Store.ConsoleProfiles(console)
 	var hit *ConsoleProfile
@@ -95,11 +117,7 @@ func (h *Handler) userKey(r *http.Request, console, gamertag string) (any, int) 
 	}
 	log.Info("internal user-key", "console", console, "gamertag", gamertag, "account", hit.Account,
 		"online", fmt.Sprintf("%016x", hit.Online))
-	return struct {
-		Account string `json:"account"`
-		Online  string `json:"online_xuid"`
-		Key     string `json:"xenon_key"`
-	}{hit.Account, fmt.Sprintf("%016x", hit.Online), hex.EncodeToString(hit.Key)}, http.StatusOK
+	return profileOut{hit.Account, fmt.Sprintf("%016x", hit.Online), hex.EncodeToString(hit.Key)}, http.StatusOK
 }
 
 func (h *Handler) wlidTicket(b64 string) (any, int) {

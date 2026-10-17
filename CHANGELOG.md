@@ -92,3 +92,8 @@
   adds 12, x360-xuacs answers (u32 HRESULT 0 + u64 FILETIME cache expiry for leaves its WLID CA issued,
   0x80090325 otherwise), Traefik routes `/xsig`. Leaf notBefore backdated 48 h; TLS logs the ClientHello and
   per-connection byte counts.
+
+- 2026-10-17: v0.8.3 the 17559 user AS-REQ carried an empty gamertag (`cname=@xbox.com`), so the profile lookup
+  refused it and the console timed out (80151909). With no gamertag, x360-xuacs lists every profile issued on the
+  console and the KDC takes the one whose K_u opens the encrypted timestamp (the WLID ticket check still binds it
+  to the account).

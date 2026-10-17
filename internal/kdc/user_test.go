@@ -18,11 +18,12 @@ type fakeDir struct {
 	ticket []byte
 }
 
-func (f *fakeDir) UserKey(_ context.Context, console, tag string) (string, uint64, []byte, error) {
-	if console != "478700668470" || tag != "Ann_Smith" {
-		return "", 0, nil, errors.New("no profile")
+func (f *fakeDir) Profiles(_ context.Context, console, tag string) ([]Profile, error) {
+	if console != "478700668470" || (tag != "Ann_Smith" && tag != "") {
+		return nil, errors.New("no profile")
 	}
-	return "A-ann", f.online, f.key, nil
+	other := Profile{Account: "A-bob", Online: 0x0009000000000002, XenonKey: bytes.Repeat([]byte{9}, 16)}
+	return []Profile{other, {Account: "A-ann", Online: f.online, XenonKey: f.key}}, nil
 }
 
 func (f *fakeDir) VerifyTicket(_ context.Context, t []byte) (string, uint64, error) {
@@ -66,6 +67,10 @@ func TestUserLogon(t *testing.T) {
 	reject(t, h, userASReq(user, xas.ticket, rc4hmac.NewKey(), dir.ticket, 4, t0), "timestamp does not decrypt")
 	reject(t, h, userASReq(user, xas.ticket, ku, []byte("forged"), 5, t0), "WLID ticket")
 
+	// Empty gamertag ("@xbox.com", as the 17559 logon sends it): found by key.
+	if _, res := handle(t, h, userASReq("@xbox.com", xas.ticket, ku, dir.ticket, 7, t0)); res.Kind != KindUserAS {
+		t.Fatal(res.Kind)
+	}
 	urep, res := handle(t, h, userASReq(user, xas.ticket, ku, dir.ticket, 6, t0))
 	if res.Kind != KindUserAS {
 		t.Fatal(res.Kind)

@@ -50,10 +50,18 @@ const (
 
 // UserDirectory is what the user AS exchange needs from x360-xuacs.
 type UserDirectory interface {
-	// UserKey returns the profile issued as gamertag on console (12 digits).
-	UserKey(ctx context.Context, console, gamertag string) (account string, online uint64, xenonKey []byte, err error)
+	// Profiles returns the profile issued as gamertag on console (12 digits),
+	// or every profile issued on the console when gamertag is empty.
+	Profiles(ctx context.Context, console, gamertag string) ([]Profile, error)
 	// VerifyTicket checks a WLID access ticket and returns whom it names.
 	VerifyTicket(ctx context.Context, ticket []byte) (account string, online uint64, err error)
+}
+
+// Profile is a profile x360-xuacs issued on a console.
+type Profile struct {
+	Account  string
+	Online   uint64
+	XenonKey []byte
 }
 
 // TicketUser is one signed-in user a ticket carries.
@@ -240,8 +248,10 @@ func (h *Handler) userAS(r *kdcReq, cname []string) ([]byte, []any, error) {
 	if len(cname) != 1 {
 		return nil, nil, errors.New("user AS: principal count")
 	}
+	// The 17559 user logon can send an empty gamertag ("@xbox.com"); the
+	// profile is then the one on this console whose key opens the request.
 	gamertag, domain, ok := strings.Cut(cname[0], "@")
-	if !ok || gamertag == "" || !strings.EqualFold(domain, AccountDomain) {
+	if !ok || !strings.EqualFold(domain, AccountDomain) {
 		return nil, nil, fmt.Errorf("user AS: principal %q", cname[0])
 	}
 	for _, t := range []int{PaParentTGT, PaEncTS, PaDA} {
@@ -278,26 +288,33 @@ func (h *Handler) userAS(r *kdcReq, cname []string) ([]byte, []any, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	account, online, xenon, err := h.Directory.UserKey(ctx, console, gamertag)
+	profiles, err := h.Directory.Profiles(ctx, console, gamertag)
 	if err != nil {
 		return nil, attrs, fmt.Errorf("user AS: profile lookup: %w", err)
 	}
-	attrs = append(attrs, "account", account, "online", fmt.Sprintf("%016x", online))
-
 	// K_u per 0x81946248; the XenonKey itself is what the firmware uses when a
 	// logon context has no parent, kept as a logged fallback.
-	var key []byte
+	var key, xenon []byte
 	var ts time.Time
-	for _, k := range [][]byte{UserKey(xenon, parentSession), xenon} {
-		if t, err := decryptTimestamp(k, r.padata[PaEncTS]); err == nil {
-			key, ts = k, t
+	var account string
+	var online uint64
+	for _, p := range profiles {
+		for _, k := range [][]byte{UserKey(p.XenonKey, parentSession), p.XenonKey} {
+			if t, err := decryptTimestamp(k, r.padata[PaEncTS]); err == nil {
+				key, ts, xenon, account, online = k, t, p.XenonKey, p.Account, p.Online
+				break
+			}
+		}
+		if key != nil {
 			break
 		}
 	}
+	attrs = append(attrs, "candidates", len(profiles))
 	if key == nil {
 		return nil, attrs, errors.New("user AS: timestamp does not decrypt under K_u (wrong XenonKey or derivation)")
 	}
-	attrs = append(attrs, "key", map[bool]string{true: "derived", false: "xenon"}[!hmac.Equal(key, xenon)])
+	attrs = append(attrs, "account", account, "online", fmt.Sprintf("%016x", online),
+		"key", map[bool]string{true: "derived", false: "xenon"}[!hmac.Equal(key, xenon)])
 	if d := now.Sub(ts); d >= Freshness || d <= -Freshness {
 		return nil, attrs, errors.New("user AS: timestamp outside 5 minutes")
 	}

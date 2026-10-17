@@ -48,21 +48,33 @@ func (d *HTTPDirectory) post(ctx context.Context, path string, in, out any) erro
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func (d *HTTPDirectory) UserKey(ctx context.Context, console, gamertag string) (string, uint64, []byte, error) {
-	var out struct {
+func (d *HTTPDirectory) Profiles(ctx context.Context, console, gamertag string) ([]Profile, error) {
+	type one struct {
 		Account string `json:"account"`
 		Online  string `json:"online_xuid"`
 		Key     string `json:"xenon_key"`
 	}
+	var out struct {
+		one
+		Profiles []one `json:"profiles"`
+	}
 	if err := d.post(ctx, "/internal/v1/user-key", map[string]string{"console": console, "gamertag": gamertag}, &out); err != nil {
-		return "", 0, nil, err
+		return nil, err
 	}
-	x, err1 := strconv.ParseUint(out.Online, 16, 64)
-	k, err2 := hex.DecodeString(out.Key)
-	if err1 != nil || err2 != nil || len(k) != 16 {
-		return "", 0, nil, fmt.Errorf("xuacs user-key: malformed reply")
+	list := out.Profiles
+	if out.Account != "" {
+		list = append(list, out.one)
 	}
-	return out.Account, x, k, nil
+	var ps []Profile
+	for _, p := range list {
+		x, err1 := strconv.ParseUint(p.Online, 16, 64)
+		k, err2 := hex.DecodeString(p.Key)
+		if err1 != nil || err2 != nil || len(k) != 16 {
+			return nil, fmt.Errorf("xuacs user-key: malformed reply")
+		}
+		ps = append(ps, Profile{Account: p.Account, Online: x, XenonKey: k})
+	}
+	return ps, nil
 }
 
 func (d *HTTPDirectory) VerifyTicket(ctx context.Context, ticket []byte) (string, uint64, error) {
