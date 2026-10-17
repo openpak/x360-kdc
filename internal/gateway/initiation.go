@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/netip"
+	"slices"
 	"time"
 
 	"openpak/x360-kdc/internal/der"
@@ -124,8 +125,9 @@ func parseInitiation(data []byte) (*initiation, error) {
 
 // verified is what a successfully verified initiation yields.
 type verified struct {
-	name  string // account principal, "<digits>@xbox.com"
-	key   []byte // sg/S0 ticket session key
+	name  string           // account principal, "<digits>@xbox.com"
+	users []kdc.TicketUser // users signed in on the ticket (user logon), else none
+	key   []byte           // sg/S0 ticket session key
 	ctime der.TLV
 	cusec der.TLV
 }
@@ -182,15 +184,11 @@ func verify(in *initiation, ticketKey []byte, accounts *kdc.Store, ca *rsa.Publi
 	if err != nil {
 		return nil, fmt.Errorf("EncTicketPart: %w", err)
 	}
-	cn, ok := inner[3]
-	if !ok {
+	id, err := kdc.ReadTicketIdentity(inner)
+	if err != nil {
 		return nil, errors.New("ticket identity")
 	}
-	names, err := kdc.Principal(cn)
-	if err != nil || len(names) != 1 {
-		return nil, errors.New("ticket identity")
-	}
-	acct := accounts.Get(names[0])
+	acct := accounts.Get(id.Machine)
 	if acct == nil || !acct.ConsoleSignatureVerified {
 		return nil, errors.New("CA-backed identity provenance")
 	}
@@ -243,7 +241,7 @@ func verify(in *initiation, ticketKey []byte, accounts *kdc.Store, ca *rsa.Publi
 	if !ok1 || !ok2 || !ok3 || string(arealm.Value) != string(crealm.Value) {
 		return nil, errors.New("authenticator identity")
 	}
-	if an, err := kdc.Principal(acn); err != nil || len(an) != 1 || an[0] != names[0] {
+	if an, err := kdc.Principal(acn); err != nil || len(an) != 1 || !slices.Contains(id.Names(), an[0]) {
 		return nil, errors.New("authenticator identity")
 	}
 	ctime, err := kdc.TimeField(auth, 5)
@@ -271,7 +269,7 @@ func verify(in *initiation, ticketKey []byte, accounts *kdc.Store, ca *rsa.Publi
 	if v, ok := cf[1]; !ok || !hmac.Equal(v.Value, hmacSHA1(key, in.signed)) {
 		return nil, errors.New("SG initiation HMAC")
 	}
-	return &verified{name: names[0], key: key, ctime: auth[5], cusec: cusec}, nil
+	return &verified{name: id.Machine, users: id.Users, key: key, ctime: auth[5], cusec: cusec}, nil
 }
 
 // rc4hmacUsageAPAuth / rc4hmacUsageAPRep are the AP-REQ authenticator (11)

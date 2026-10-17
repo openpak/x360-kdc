@@ -27,6 +27,9 @@ const (
 type consoleRec struct {
 	Offline string `json:"offline"` // 16 hex digits
 	Key     string `json:"key"`     // 32 hex digits, the XenonKey
+	// Gamertag issued with the profile; the user AS-REQ names the profile
+	// "<gamertag>@xbox.com" (spaces as '_'). Empty in records from before 0.8.
+	Gamertag string `json:"gamertag,omitempty"`
 }
 
 type accountRec struct {
@@ -173,7 +176,7 @@ func (s *Store) usedLocked(x uint64) bool {
 
 // Profile returns the offline XUID and the 16-byte XenonKey for an account on
 // a console, creating them on first use (offline: 0xE000 + 48 random bits).
-func (s *Store) Profile(account, console string) (offline uint64, key []byte, err error) {
+func (s *Store) Profile(account, console, gamertag string) (offline uint64, key []byte, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := s.d.Accounts[account]
@@ -203,6 +206,12 @@ func (s *Store) Profile(account, console string) (offline uint64, key []byte, er
 			return 0, nil, err
 		}
 	}
+	if gamertag != "" && c.Gamertag != gamertag {
+		c.Gamertag = gamertag
+		if err := s.save(); err != nil {
+			return 0, nil, err
+		}
+	}
 	key, _ = hex.DecodeString(c.Key)
 	return parseXUID(c.Offline), key, nil
 }
@@ -211,4 +220,29 @@ func parseXUID(h string) uint64 {
 	var x uint64
 	fmt.Sscanf(h, "%x", &x)
 	return x
+}
+
+// ConsoleProfile is a profile issued on one console.
+type ConsoleProfile struct {
+	Account  string
+	Online   uint64
+	Offline  uint64
+	Key      []byte
+	Gamertag string // empty for records from before 0.8
+}
+
+// ConsoleProfiles lists every profile issued on a console.
+func (s *Store) ConsoleProfiles(console string) []ConsoleProfile {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []ConsoleProfile
+	for acct, a := range s.d.Accounts {
+		c := a.Consoles[console]
+		if c == nil || a.Online == "" {
+			continue
+		}
+		k, _ := hex.DecodeString(c.Key)
+		out = append(out, ConsoleProfile{Account: acct, Online: parseXUID(a.Online), Offline: parseXUID(c.Offline), Key: k, Gamertag: c.Gamertag})
+	}
+	return out
 }

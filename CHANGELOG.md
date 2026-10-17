@@ -67,3 +67,16 @@
   configurable SG address). JSON account store (0600, atomic) and 16-byte ticket key file. Unit tests, a
   synthetic end-to-end exchange with every rejection path, and replay of the live captures with the dev
   keys. Not deployed, no tag, not yet tried by the emulator itself.
+
+- 2026-10-17: v0.8.0 Live sign-in of a downloaded profile (XamUserLogon 0x514B4). x360-xuacs serves the
+  Windows Live ID login XAM runs before the user's Kerberos exchange, on its own TLS listener
+  (`X360_XUACS_TLS_ADDR`, leaves for nexus.passport.com / login.live.com from a CA in the state dir; XAM checks
+  name and dates only, RSA key exchange, AES-CBC): FederationMetaData.xml, openid-configuration,
+  deviceaddcredential.srf, RST2.srf (device token) and oauth20_token.srf (password grant checked in the account
+  core, refresh grant), issuing an HMAC-signed access ticket that the console sends to XEAS in padata 0xDA.
+  Internal API (`X360_XUACS_INTERNAL_ADDR`/`_KEY`): profile XenonKey by console + gamertag, WLID ticket check;
+  0x63F now stores the gamertag with the profile. x360-kdc answers the user AS-REQ (padata 0x82 parent TGT,
+  2, 0xCE, 0xDA; K_u = HMAC-MD5(HMAC-MD5(XenonKey, "signaturekey\0"), MD5(00 04 00 00 || parent session key)))
+  with a user TGT whose authorization-data names the console and the authorised users; the TGS accepts D6
+  user ids that the chain authorised (D7 user words 0) instead of refusing them; the gateway accepts those
+  tickets and passes `X-X360-Users` upstream. Unit-tested only.

@@ -89,6 +89,17 @@ func main() {
 	} else {
 		log.Warn("account core NOT configured: identities come from the local store only (development; production must set X360_KDC_ACCOUNT_CORE_URL and _TOKEN)")
 	}
+	if u := os.Getenv("X360_KDC_XUACS_URL"); u != "" {
+		k := os.Getenv("X360_KDC_XUACS_KEY")
+		if len(k) < 16 {
+			log.Error("X360_KDC_XUACS_URL needs X360_KDC_XUACS_KEY (at least 16 characters)")
+			os.Exit(2)
+		}
+		h.Directory = &kdc.HTTPDirectory{URL: u, Key: k}
+		log.Info("user sign-in enabled: profile keys and WLID tickets from x360-xuacs", "url", u)
+	} else {
+		log.Warn("X360_KDC_XUACS_URL not set: user AS exchanges (Live sign-in of a profile) are refused")
+	}
 	srv := &kdc.Server{Handler: h, Log: log}
 	if err := srv.Serve(ctx, conn); err != nil {
 		log.Error("serve", "err", err)

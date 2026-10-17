@@ -241,7 +241,7 @@ func TestServiceURLsRouteByPort(t *testing.T) {
 	g := &Gateway{ServiceURL: def.URL, ServiceURLs: map[uint16]string{5: five.URL}}
 	raw := []byte("POST /xuacs/x.ashx HTTP/1.0\r\nX-X360-Account: spoof\r\nContent-Length: 0\r\n\r\n")
 	for _, port := range []uint16{5, 80, 25} {
-		if st, _, _ := g.upstream(raw, port, "123@xbox.com"); st != "200 OK" {
+		if st, _, _ := g.upstream(raw, port, "123@xbox.com", ""); st != "200 OK" {
 			t.Fatalf("port %d: %s", port, st)
 		}
 	}
@@ -249,12 +249,12 @@ func TestServiceURLsRouteByPort(t *testing.T) {
 		t.Fatalf("routing: default %q five %q account %q", hits[0], hits[1], acct[1])
 	}
 	hits = [2]string{}
-	g.upstream(raw, 5, "")
+	g.upstream(raw, 5, "", "")
 	if hits[0] != "" || hits[1] == "" || acct[1] != "" {
 		t.Fatalf("port 5 went to default or kept a spoofed account %q", acct[1])
 	}
 	g2 := &Gateway{ServiceURLs: map[uint16]string{5: five.URL}}
-	if st, _, _ := g2.upstream(raw, 80, ""); st != "503 Service Unavailable" {
+	if st, _, _ := g2.upstream(raw, 80, "", ""); st != "503 Service Unavailable" {
 		t.Fatalf("unrouted port without default: %s", st)
 	}
 }

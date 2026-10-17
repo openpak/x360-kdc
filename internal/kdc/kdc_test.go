@@ -349,8 +349,8 @@ func TestTGSRejections(t *testing.T) {
 	reject(t, h, tgsReq("000000000002@xbox.com", tgt, session, 7, t0, nil), "authenticator identity")
 	// Wrong session key for the authenticator.
 	reject(t, h, tgsReq(name, tgt, rc4hmac.NewKey(), 8, t0, nil), "authenticator checksum")
-	// User ids present: not implemented, refused.
-	reject(t, h, tgsReq(name, tgt, session, 9, t0, func(d6 []byte, _ *[][]byte) { d6[d6UsersOff+3] = 1 }), "user TGS authentication")
+	// User ids present without a user AS exchange: refused.
+	reject(t, h, tgsReq(name, tgt, session, 9, t0, func(d6 []byte, _ *[][]byte) { d6[d6UsersOff+3] = 1 }), "not authorised by a user AS exchange")
 	// Wrong D6 version.
 	reject(t, h, tgsReq(name, tgt, session, 10, t0, func(d6 []byte, _ *[][]byte) { d6[0] = 5 }), "D6 version")
 	// Authenticator subkey present.

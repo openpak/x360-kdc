@@ -2,6 +2,22 @@
 # These blocks belong in the shared dynamic.yml (routers under http.routers,
 # services under http.services), not in a separate file. Copied verbatim from
 # the live file; keep in sync when the shared file changes.
+tcp:
+  routers:
+    x360-wlid:
+      # Windows Live ID login of the 360 user logon: TLS terminated by x360-xuacs (RSA key exchange).
+      entryPoints:
+      - console
+      rule: HostSNI(`nexus.passport.com`) || HostSNI(`login.live.com`)
+      priority: 100
+      service: x360-wlid-tls
+      tls:
+        passthrough: true
+  services:
+    x360-wlid-tls:
+      loadBalancer:
+        servers:
+        - address: openpak-x360-xuacs:10443
 http:
   routers:
     x360-liveinfo-web:

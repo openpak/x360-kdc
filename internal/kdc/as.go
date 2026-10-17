@@ -59,6 +59,10 @@ func (h *Handler) handleAS(data []byte) ([]byte, *Result, error) {
 		rep, attrs, err := h.macs(r, cname)
 		return rep, &Result{Kind: KindMACS, Attrs: append(base, attrs...)}, err
 	case AccountRealm:
+		if _, user := r.padata[PaDA]; user {
+			rep, attrs, err := h.userAS(r, cname)
+			return rep, &Result{Kind: KindUserAS, Attrs: append(base, attrs...)}, err
+		}
 		rep, attrs, err := h.xeas(r, cname)
 		return rep, &Result{Kind: KindXEAS, Attrs: append(base, attrs...)}, err
 	}

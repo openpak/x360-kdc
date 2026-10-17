@@ -67,41 +67,25 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 	if err != nil {
 		return nil, res, fmt.Errorf("TGS: ticket: %w", err)
 	}
-	if realm, ok := tf[1]; !ok || string(realm.Value) != AccountRealm {
-		return nil, res, errors.New("TGS: TGT realm")
-	}
 	if sn, ok := tf[2]; !ok {
 		return nil, res, errors.New("TGS: TGT sname")
 	} else if names, err := principal(sn); err != nil || !equalStrings(names, []string{Krbtgt, AccountRealm}) {
 		return nil, res, errors.New("TGS: TGT service")
 	}
-	encTkt, ok := tf[3]
-	if !ok {
-		return nil, res, errors.New("TGS: TGT enc-part missing")
-	}
-	cipher, err := encryptedData(encTkt.Raw)
+	inner, session, err := h.openTicket(tkt.Raw, now)
 	if err != nil {
-		return nil, res, fmt.Errorf("TGS: TGT enc-part: %w", err)
+		return nil, res, fmt.Errorf("TGS: %w", err)
 	}
-	plain, err := rc4hmac.Decrypt(h.TicketKey, rc4hmac.UsageTicket, cipher)
+	id, err := ReadTicketIdentity(inner)
 	if err != nil {
-		return nil, res, errors.New("TGS: ticket not issued by this server")
+		return nil, res, fmt.Errorf("TGS: %w", err)
 	}
-	// EncTicketPart: [0] flags, [1] key, [2] crealm, [3] cname, [4] transited, [5] authtime, [6] starttime, [7] endtime.
-	inner, err := appSeqFields(plain, tagEncTkt)
-	if err != nil {
-		return nil, res, fmt.Errorf("TGS: EncTicketPart: %w", err)
+	names := []string{id.Principal}
+	res.Attrs = append(res.Attrs, "cname", id.Principal)
+	if id.Machine != id.Principal {
+		res.Attrs = append(res.Attrs, "machine", id.Machine)
 	}
-	cn, ok := inner[3]
-	if !ok {
-		return nil, res, errors.New("TGS: ticket principal missing")
-	}
-	names, err := principal(cn)
-	if err != nil || len(names) != 1 {
-		return nil, res, errors.New("TGS: ticket principal count")
-	}
-	res.Attrs = append(res.Attrs, "cname", names[0])
-	acct := h.Accounts.Get(names[0])
+	acct := h.Accounts.Get(id.Machine)
 	if acct == nil {
 		return nil, res, errors.New("TGS: unknown ticket identity")
 	}
@@ -118,19 +102,6 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 	crealm, ok := inner[2]
 	if !ok || string(crealm.Value) != AccountRealm {
 		return nil, res, errors.New("TGS: ticket client realm")
-	}
-	start, err1 := timeField(inner, 6)
-	end, err2 := timeField(inner, 7)
-	if err1 != nil || err2 != nil || now.Before(start) || now.After(end) {
-		return nil, res, errors.New("TGS: ticket validity")
-	}
-	kf, ok := inner[1]
-	if !ok {
-		return nil, res, errors.New("TGS: ticket session key missing")
-	}
-	session, err := keyValue(kf)
-	if err != nil {
-		return nil, res, fmt.Errorf("TGS: ticket session key: %w", err)
 	}
 
 	// Authenticator: usage 7 under the TGT session key.
@@ -155,7 +126,7 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 	}
 	if acn, ok := auth[2]; !ok {
 		return nil, res, errors.New("TGS: authenticator identity")
-	} else if an, err := principal(acn); err != nil || !equalStrings(an, names) {
+	} else if an, err := principal(acn); err != nil || len(an) != 1 || !contains(id.Names(), an[0]) {
 		return nil, res, errors.New("TGS: authenticator identity")
 	}
 	if _, ok := auth[6]; ok {
@@ -208,14 +179,14 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 		}
 	}
 	if len(xuids) > 0 {
-		// TODO(capture): the user sign-in request. The four ids here only name
-		// the users; where the firmware carries the OpenPak credentials (a
-		// separate padata, an XUACS passport call or the user-key AS exchange)
-		// is not captured, and no bytes are guessed. Once captured, build an
-		// accountcore.SignInRequest from them and call h.Users.SignIn here,
-		// then bind the result with Store.BindCore.
-		res.Attrs = append(res.Attrs, "user_xuids", strings.Join(xuids, ","), "sign_in_service", h.Users != nil)
-		return nil, res, errors.New("TGS: user TGS authentication not implemented: credential carrier not captured (needs a capture of XamUserLogon)")
+		// Every user id must have been authorised by a user AS exchange
+		// (user.go) along this ticket's chain.
+		res.Attrs = append(res.Attrs, "user_xuids", strings.Join(xuids, ","))
+		for i := 0; i < d6UsersLen; i += 8 {
+			if x := binary.LittleEndian.Uint64(d6[d6UsersOff+i:]); x != 0 && !id.HasUser(x) {
+				return nil, res, fmt.Errorf("TGS: user %016x was not authorised by a user AS exchange", x)
+			}
+		}
 	}
 	res.Attrs = append(res.Attrs, "title", title, "sg", h.SGAddress.String(),
 		"title_id", fmt.Sprintf("%08X", binary.LittleEndian.Uint32(d6[0x0e:])),
@@ -226,7 +197,11 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 	// EncTGSRepPart under the TGT session key, usage 8.
 	sessionOut := rc4hmac.NewKey()
 	d7 := encPadata(PaD7, encEncryptedData(rc4hmac.Encrypt(derived, rc4hmac.UsageD7, d7Record(h.SGAddress))))
-	ticket := h.authTicket(r.realm, names, r.sname, sessionOut, now)
+	var ad []byte
+	if len(id.Users) > 0 || id.Machine != id.Principal {
+		ad = encAuthData(id.Machine, id.Users)
+	}
+	ticket := h.ticket(r.realm, names, r.sname, sessionOut, now, ad)
 	part := encKDCRepPart(26, sessionOut, r.nonce, r.realm, r.sname, now)
 	rep := encKDCRep(13, msgTGSRep, d7, r.realm, names, ticket, rc4hmac.Encrypt(session, rc4hmac.UsageReply, part))
 	return rep, res, nil
@@ -257,4 +232,13 @@ func keyValue(v der.TLV) ([]byte, error) {
 		return nil, errors.New("size")
 	}
 	return k.Value, nil
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

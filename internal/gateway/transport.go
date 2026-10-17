@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"openpak/x360-kdc/internal/kdc"
 )
 
 // Service transport: XAM runs a TCP connection inside the secure channel
@@ -30,6 +32,18 @@ const (
 
 // AccountHeader carries the session's console account to the service backend.
 const AccountHeader = "X-X360-Account"
+
+// UsersHeader lists the users signed in on the tunnel's ticket as
+// "<online xuid hex>:<OpenPak account id>" separated by commas.
+const UsersHeader = "X-X360-Users"
+
+func usersHeader(users []kdc.TicketUser) string {
+	var parts []string
+	for _, u := range users {
+		parts = append(parts, fmt.Sprintf("%016x:%s", u.XUID, u.Account))
+	}
+	return strings.Join(parts, ",")
+}
 
 type tcpKey struct{ client, server uint16 }
 
@@ -162,7 +176,7 @@ func (g *Gateway) tcpSegment(s *Session, sg tcpSeg, now time.Time) [][]byte {
 	}
 	if !c.responded && requestComplete(c.req) {
 		c.responded = true
-		c.resp = g.serve(c.req, key.server, s.Account, log)
+		c.resp = g.serve(c.req, key.server, s.Account, usersHeader(s.Users), log)
 		c.finQueued = true
 	}
 	if needAck {
@@ -244,18 +258,18 @@ func smallBodyHex(raw []byte) string {
 
 // serve proxies the raw HTTP request to the service backend and returns the
 // raw HTTP response (always well formed, 502/503 when the backend is not reachable).
-func (g *Gateway) serve(raw []byte, port uint16, account string, log interface{ Info(string, ...any) }) []byte {
+func (g *Gateway) serve(raw []byte, port uint16, account, users string, log interface{ Info(string, ...any) }) []byte {
 	reqLine, _, _ := strings.Cut(string(raw), "\r\n")
 	head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
 	log.Info("http request", "port", port, "line", reqLine, "headers", strings.ReplaceAll(head, "\r\n", " | "), "bytes", len(raw),
 		"body_hex", smallBodyHex(raw))
-	status, hdr, body := g.upstream(raw, port, account)
+	status, hdr, body := g.upstream(raw, port, account, users)
 	resp := buildResponse(status, hdr, body)
 	log.Info("http response", "status", status, "body_len", len(body), "bytes", len(resp))
 	return resp
 }
 
-func (g *Gateway) upstream(raw []byte, port uint16, account string) (string, http.Header, []byte) {
+func (g *Gateway) upstream(raw []byte, port uint16, account, users string) (string, http.Header, []byte) {
 	fail := func(status string, err error) (string, http.Header, []byte) {
 		g.log().Info("service backend failed", "status", status, "err", err.Error())
 		return status, http.Header{"Content-Type": {"text/plain"}}, []byte(status + "\n")
@@ -289,8 +303,12 @@ func (g *Gateway) upstream(raw []byte, port uint16, account string) (string, htt
 	// The tunnel's authenticated console ("<digits>@xbox.com"), for backends
 	// that need to know it (xuacs enrolment). A client-sent value is replaced.
 	out.Header.Del(AccountHeader)
+	out.Header.Del(UsersHeader)
 	if account != "" {
 		out.Header.Set(AccountHeader, account)
+	}
+	if users != "" {
+		out.Header.Set(UsersHeader, users)
 	}
 	out.Host = base.Host
 	cl := g.HTTP

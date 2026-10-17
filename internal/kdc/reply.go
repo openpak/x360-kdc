@@ -63,7 +63,13 @@ func opaqueTicket(realm string, service []string) []byte {
 // under the server's ticket key. Ticket contents are opaque to the firmware;
 // this format is the server's own and TGS verifies it before replying.
 func (h *Handler) authTicket(realm string, cname, service []string, session []byte, now time.Time) []byte {
-	plain := der.App(3, der.Seq(
+	return h.ticket(realm, cname, service, session, now, nil)
+}
+
+// ticket is authTicket with optional authorization-data ([10], user.go);
+// machine-only tickets carry none, so their size is unchanged.
+func (h *Handler) ticket(realm string, cname, service []string, session []byte, now time.Time, authData []byte) []byte {
+	fields := [][]byte{
 		der.Ctx(0, zeroFlags()),
 		der.Ctx(1, encKey(session)),
 		der.Ctx(2, der.String(realm)),
@@ -72,7 +78,11 @@ func (h *Handler) authTicket(realm string, cname, service []string, session []by
 		der.Ctx(5, der.Time(now)),
 		der.Ctx(6, der.Time(now)),
 		der.Ctx(7, der.Time(now.Add(TicketTL))),
-	))
+	}
+	if authData != nil {
+		fields = append(fields, der.Ctx(10, authData))
+	}
+	plain := der.App(3, der.Seq(fields...))
 	return der.App(1, der.Seq(
 		der.Ctx(0, der.Integer(pvno)),
 		der.Ctx(1, der.String(realm)),

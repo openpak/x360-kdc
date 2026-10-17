@@ -250,6 +250,13 @@ type XUACSConfig struct {
 	CoreToken string // X360_XUACS_ACCOUNT_CORE_TOKEN
 	MaxSkew   string // X360_XUACS_MAX_SKEW: optional Go duration, default 5m
 	Debug     bool   // X360_XUACS_DEBUG
+	// TLSAddr serves the Windows Live ID hosts (nexus.passport.com,
+	// login.live.com) with leaves from a CA kept in <state>/wlid-ca; empty: off.
+	TLSAddr string // X360_XUACS_TLS_ADDR, e.g. :10443
+	// InternalAddr serves the internal API x360-kdc uses for the user AS
+	// exchange; it needs InternalKey. Empty: off.
+	InternalAddr string // X360_XUACS_INTERNAL_ADDR, e.g. :10006
+	InternalKey  string // X360_XUACS_INTERNAL_KEY
 }
 
 // LoadXUACS reads the xuacs environment through getenv.
@@ -262,6 +269,13 @@ func LoadXUACS(getenv func(string) string) (*XUACSConfig, error) {
 		CoreToken: getenv("X360_XUACS_ACCOUNT_CORE_TOKEN"),
 		MaxSkew:   strings.TrimSpace(getenv("X360_XUACS_MAX_SKEW")),
 		Debug:     isTrue(getenv("X360_XUACS_DEBUG")),
+
+		TLSAddr:      strings.TrimSpace(getenv("X360_XUACS_TLS_ADDR")),
+		InternalAddr: strings.TrimSpace(getenv("X360_XUACS_INTERNAL_ADDR")),
+		InternalKey:  strings.TrimSpace(getenv("X360_XUACS_INTERNAL_KEY")),
+	}
+	if c.InternalAddr != "" && len(c.InternalKey) < 16 {
+		return nil, fmt.Errorf("X360_XUACS_INTERNAL_ADDR needs X360_XUACS_INTERNAL_KEY (at least 16 characters)")
 	}
 	if c.Addr == "" {
 		c.Addr = DefaultXUACSAddr

@@ -121,6 +121,8 @@ type Handler struct {
 	Log     *slog.Logger
 	Now     func() time.Time // default time.Now
 	MaxSkew time.Duration    // default DefaultMaxSkew
+	// WLIDKey signs the Windows Live ID access and refresh tokens (wlid.go).
+	WLIDKey []byte
 
 	mu    sync.Mutex
 	proxy map[string]time.Time // issued proxy blobs (hex) -> expiry
@@ -450,6 +452,11 @@ func (h *Handler) identity(ctx context.Context, tok []byte) (acct string, xuid u
 	if !ok {
 		return "", 0, "", deny(http.StatusUnauthorized, "unknown or expired token")
 	}
+	return h.identityOf(ctx, acct, email)
+}
+
+// identityOf is identity for a known account and its sign-in email.
+func (h *Handler) identityOf(ctx context.Context, acct, email string) (_ string, xuid uint64, tag string, err error) {
 	l, err := h.Core.ActiveXboxLink(ctx, acct)
 	if err != nil {
 		h.log().Error("active link", "err", err)
@@ -610,7 +617,7 @@ func (h *Handler) recover(ctx context.Context, body []byte, account string) ([]b
 		h.log().Error("enrol", "err", err)
 		return nil, deny(http.StatusServiceUnavailable, "account service unavailable")
 	}
-	offline, key, err := h.Store.Profile(acct, digits)
+	offline, key, err := h.Store.Profile(acct, digits, tag)
 	if err != nil {
 		return nil, err
 	}

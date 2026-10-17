@@ -486,7 +486,7 @@ func TestStorePersists(t *testing.T) {
 	_, tok := r.login("ann@example.org", "secret12")
 	_, g := r.post(PathGamertag, tok)
 	x := binary.LittleEndian.Uint64(g)
-	off, key, err := r.h.Store.Profile("A-ann", "123456789012")
+	off, key, err := r.h.Store.Profile("A-ann", "123456789012", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestStorePersists(t *testing.T) {
 	if x2, _ := s2.OnlineXUID("A-ann", 0); x2 != x {
 		t.Fatal("online XUID lost")
 	}
-	if o2, k2, _ := s2.Profile("A-ann", "123456789012"); o2 != off || !bytes.Equal(k2, key) || len(key) != 16 {
+	if o2, k2, _ := s2.Profile("A-ann", "123456789012", ""); o2 != off || !bytes.Equal(k2, key) || len(key) != 16 {
 		t.Fatal("profile lost")
 	}
 }

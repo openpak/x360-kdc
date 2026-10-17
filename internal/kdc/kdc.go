@@ -79,6 +79,7 @@ const (
 	KindMACS       Kind = "MACS"
 	KindXEAS       Kind = "XEAS"
 	KindTGS        Kind = "TGS"
+	KindUserAS     Kind = "USER-AS"
 	KindRecordOnly Kind = "record-only"
 )
 
@@ -101,7 +102,10 @@ type Handler struct {
 	Core ConsoleEnroller
 	// Users, when set, is the enrol-on-sign-in service for the user TGS path
 	// (see tgs.go). Nil refuses user TGS requests.
-	Users     UserSignIn
+	Users UserSignIn
+	// Directory, when set, serves the user AS exchange (user.go): profile
+	// keys and WLID ticket checks from x360-xuacs. Nil refuses user AS-REQs.
+	Directory UserDirectory
 	TicketKey []byte // 16 bytes, encrypts our own tickets (usage 2)
 	SGAddress netip.Addr
 	Now       func() time.Time // injectable clock; time.Now in production
