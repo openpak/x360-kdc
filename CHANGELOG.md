@@ -100,3 +100,7 @@
 
 - 2026-10-17: v0.8.4 padata 0xDA's length prefix is little-endian on the wire (live: 91-byte plaintext, `59 00`
   + the 89-byte ticket); the KDC read it big-endian and refused "DA length". Both orders accepted, LE first.
+
+- 2026-10-17: v0.8.5 gateway: after the user TGS the console sends a 544-byte secure-channel message with 0x40
+  in the first SPI byte (it authenticates under the session keys); it was refused as a foreign SPI, the console
+  tore the session down and the sign-in failed with 800704DB. 0x40 is accepted as a flag like 0x80 and logged.

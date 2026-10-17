@@ -230,9 +230,14 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 		g.log().Info("unverifiable data", "src", src, "account", s.Account, "len", len(pkt), "hex", hex.EncodeToString(pkt))
 		return nil, err
 	}
-	// The client puts 0x80 into the first SPI byte on its first data packet.
-	if spi[0]&0x7f != s.ServerSPI[0] || string(spi[1:]) != string(s.ServerSPI[1:]) {
+	// The client puts 0x80 into the first SPI byte on its first data packet,
+	// and 0x40 on the 544-byte message it sends right after a user logon's
+	// TGS (seen live 2026-10-17); both are flags, not part of the SPI.
+	if spi[0]&0x3f != s.ServerSPI[0] || string(spi[1:]) != string(s.ServerSPI[1:]) {
 		return nil, fmt.Errorf("data SPI %x is not this session's", spi)
+	}
+	if spi[0]&0x40 != 0 {
+		g.log().Info("data with SPI flag 0x40", "src", src, "spi", hex.EncodeToString(spi))
 	}
 	s.expires = now.Add(SessionTTL)
 	s.lastSeen = now
