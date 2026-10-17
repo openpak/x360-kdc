@@ -237,3 +237,43 @@ func LoadLiveInfo(getenv func(string) string) (*LiveInfoConfig, error) {
 	c.Extra = extra
 	return c, nil
 }
+
+// DefaultXUACSAddr is the xuacs HTTP port (Live service 5; the port is the service id).
+const DefaultXUACSAddr = ":5"
+
+// XUACSConfig is the x360-xuacs configuration.
+type XUACSConfig struct {
+	Addr      string // X360_XUACS_ADDR, default :5 (TCP)
+	RSAKey    string // X360_XUACS_RSA_KEY: RSA-2048 private key PEM, generated 0600 when missing; default <state>/rsa-key.pem
+	State     string // X360_XUACS_STATE: directory for the token store and issued profiles
+	CoreURL   string // X360_XUACS_ACCOUNT_CORE_URL (required: passwords are verified there)
+	CoreToken string // X360_XUACS_ACCOUNT_CORE_TOKEN
+	MaxSkew   string // X360_XUACS_MAX_SKEW: optional Go duration, default 5m
+	Debug     bool   // X360_XUACS_DEBUG
+}
+
+// LoadXUACS reads the xuacs environment through getenv.
+func LoadXUACS(getenv func(string) string) (*XUACSConfig, error) {
+	c := &XUACSConfig{
+		Addr:      getenv("X360_XUACS_ADDR"),
+		RSAKey:    getenv("X360_XUACS_RSA_KEY"),
+		State:     getenv("X360_XUACS_STATE"),
+		CoreURL:   getenv("X360_XUACS_ACCOUNT_CORE_URL"),
+		CoreToken: getenv("X360_XUACS_ACCOUNT_CORE_TOKEN"),
+		MaxSkew:   strings.TrimSpace(getenv("X360_XUACS_MAX_SKEW")),
+		Debug:     isTrue(getenv("X360_XUACS_DEBUG")),
+	}
+	if c.Addr == "" {
+		c.Addr = DefaultXUACSAddr
+	}
+	if c.State == "" {
+		c.State = "x360-xuacs-state"
+	}
+	if c.RSAKey == "" {
+		c.RSAKey = strings.TrimRight(c.State, "/") + "/rsa-key.pem"
+	}
+	if c.CoreURL == "" || c.CoreToken == "" {
+		return nil, fmt.Errorf("X360_XUACS_ACCOUNT_CORE_URL and X360_XUACS_ACCOUNT_CORE_TOKEN are required")
+	}
+	return c, nil
+}

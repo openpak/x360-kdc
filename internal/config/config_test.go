@@ -165,3 +165,13 @@ func TestParseServiceURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadXUACS(t *testing.T) {
+	if _, err := LoadXUACS(env(nil)); err == nil {
+		t.Fatal("core settings are required")
+	}
+	c, err := LoadXUACS(env(map[string]string{"X360_XUACS_ACCOUNT_CORE_URL": "http://c:7000", "X360_XUACS_ACCOUNT_CORE_TOKEN": "k", "X360_XUACS_STATE": "/s/"}))
+	if err != nil || c.Addr != ":5" || c.RSAKey != "/s/rsa-key.pem" {
+		t.Fatalf("%+v %v", c, err)
+	}
+}
