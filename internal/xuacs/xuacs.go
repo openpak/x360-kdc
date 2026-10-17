@@ -537,8 +537,13 @@ func (h *Handler) family(body []byte) ([]byte, error) {
 // first name, last name, u64 date of birth (FILETIME), member name, a 6-string
 // address block, a 3-string block, u16 country, 4 u8 flags; strings are
 // "u16 len | UTF-8 | NUL". The applet reads FName, DOB and the byte at struct
-// offset 0x4a (CountryId, 0x53 = unknown -> 103/US); we have none of this data
-// beyond the gamertag, so the rest is empty, DOB 2000-01-01, country US.
+// offset 0x4a as CountryId (0x53 -> 103/US). In XAM's packed in-memory struct
+// (strings 6 bytes {u16 len, ptr}, u64 at 0x0c, blocks at 0x1a and 0x3e, u16
+// country at 0x50) 0x4a is the high byte of the third block-2 string's length,
+// so any sane reply yields CountryId 0 (confirmed live: CountryInfo id 0). The
+// country is still sent where the schema puts it; CountryInfo answers every id.
+// We have none of this data beyond the gamertag, so the rest is empty, DOB
+// 2000-01-01, country US.
 func (h *Handler) accountInfo(ctx context.Context, body []byte) ([]byte, error) {
 	r := &reader{b: body}
 	tok := r.take(28)
