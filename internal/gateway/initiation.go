@@ -109,6 +109,12 @@ func parseInitiation(data []byte) (*initiation, error) {
 	if len(core) != 20 || len(public) != dhLen {
 		return nil, errors.New("SG core/DH size")
 	}
+	// Core [0:2] version 0, [2:4] flags 0x0001 (little-endian, bytes 01 00) on every Xbox 360
+	// initiation we have captured. The original Xbox sends the same chunk with
+	// flags 0: those sessions belong to xb-gateway, never answer them here.
+	if core[0] != 0 || core[1] != 0 || core[2] != 1 || core[3] != 0 {
+		return nil, fmt.Errorf("initiation core version/flags %x (not an Xbox 360 client)", core[:4])
+	}
 	if r := leInt(public); r.Cmp(big.NewInt(1)) <= 0 || r.Cmp(new(big.Int).Sub(dhPrime, big.NewInt(1))) >= 0 {
 		return nil, errors.New("DH public range")
 	}

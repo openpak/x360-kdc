@@ -1,5 +1,8 @@
 # x360-gateway shares public UDP 3074 with xb-gateway and the x360-xexds redirect: new flows whose UDP
-# payload starts 00 00 00 00 02 58 (Xbox 360 SG initiation, chunk 0x5802) go to :13075. The session's
+# payload starts 00 00 00 00 02 58 18 00 00 00 01 00 (Xbox 360 SG initiation: chunk 0x5802, core version
+# 0, flags 0x0001) go to :13075. The ORIGINAL Xbox SG initiation shares the first eight bytes but its core
+# flags are 0 (payload[8:12] = 00 00 00 00), so that word is part of the match and those flows stay on
+# xb-gateway (2026-10-17 fix: the earlier rule stole them). The session's
 # later datagrams (SPI-prefixed, not matchable) follow the conntrack entry, so that entry is kept for an
 # hour after the last reply instead of the default UDP timeout. Own table.
 add table ip x360sg
@@ -11,6 +14,6 @@ table ip x360sg {
   }
   chain pre {
     type nat hook prerouting priority dstnat; policy accept;
-    udp dport 3074 ct state new @th,64,32 0x00000000 @th,96,16 0x0258 counter ct timeout set "x360sg" redirect to :13075
+    udp dport 3074 ct state new @th,64,32 0x00000000 @th,96,16 0x0258 @th,128,32 0x00000100 counter ct timeout set "x360sg" redirect to :13075
   }
 }
