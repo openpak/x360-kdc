@@ -37,10 +37,15 @@ iptables INPUT accept for its port ahead of the first REJECT.
 - **x360-liveinfo**: LiveHive endpoint (`/liveinfo/GetLiveConfig.ashx`, Live
   service 25) on port 10025. Traefik routes `PathPrefix(/liveinfo)` on the
   plain-HTTP entrypoint (port 80) to it.
+- **x360-xuacs** (file only, not applied): account service (`/xuacs/*.ashx`, Live
+  service 5) on port 10005, Traefik `PathPrefix(/xuacs)`. Needs
+  `~/openpak/deploy/x360-xuacs/core.env` (account core URL and internal key, mode
+  0600) and a writable `~/openpak/deploy/x360-xuacs/state` (uid 100). The KDC must
+  list service 5 in D7 (default since this change).
 - **x360-notice**: connectivity pages for `xncsi.xboxlive.com` and
   `notice.xbox.com` on port 8080, routed by Traefik on the plain-HTTP entrypoint.
-- **Traefik routes**: `traefik-x360-fragment.yml` holds the four x360 blocks
-  (two routers, two services). They belong in the shared
+- **Traefik routes**: `traefik-x360-fragment.yml` holds the x360 blocks
+  (routers and services for liveinfo, xuacs and notice). They belong in the shared
   `~/openpak/deploy/traefik/dynamic.yml`, not in a separate file.
 - **account-core ZeroTier forwarder**: `x360-core-forward.py` (user unit
   `openpak-x360-core-forward.service`) forwards TCP `10.212.63.196:20001` to
@@ -85,14 +90,14 @@ systemctl --user start openpak-x360-kdc.service openpak-x360-gateway.service ope
 Primary:
 
 ```sh
-cp primary/openpak-x360-liveinfo.container primary/openpak-x360-notice.container ~/.config/containers/systemd/
+cp primary/openpak-x360-liveinfo.container primary/openpak-x360-notice.container primary/openpak-x360-xuacs.container ~/.config/containers/systemd/
 cp primary/x360-core-forward.py ~/openpak/deploy/
 cp primary/openpak-x360-core-forward.service ~/.config/systemd/user/
 # merge primary/traefik-x360-fragment.yml into ~/openpak/deploy/traefik/dynamic.yml
 
 systemctl --user daemon-reload
 systemctl --user enable --now openpak-x360-core-forward.service
-systemctl --user start openpak-x360-liveinfo.service openpak-x360-notice.service
+systemctl --user start openpak-x360-liveinfo.service openpak-x360-notice.service openpak-x360-xuacs.service
 ```
 
 Quadlet-generated units take the container name with a `.service` suffix.

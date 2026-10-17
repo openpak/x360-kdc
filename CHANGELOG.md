@@ -14,6 +14,15 @@
 
 ## Unreleased
 
+- 2026-10-17: x360-xuacs, the account service for Live service 5 (`internal/xuacs`, `cmd/x360-xuacs`, fourth
+  binary in the image): XRL 0x645, 0x64A, 0x608 (RSA-OAEP + 3DES, password checked in the account core), 0x60E,
+  0x624, 0x1707 and 0x63F (issues the offline XUID and XenonKey and enrols the console and profile through
+  `SignInService.Link`); 0x649 is refused. Raw-field replies, no envelope. Unit-tested with a fake core and a
+  client-side 0x608 builder; untested against the applet. Deploy file for the primary, not applied.
+- 2026-10-17: gateway `X360_GATEWAY_SERVICE_URLS` (`port=url;port=url`) routes tunnelled connections by destination
+  port, `X360_GATEWAY_SERVICE_URL` stays the default; upstream requests carry `X-X360-Account`.
+- 2026-10-17: D7 default services are now 1, 20, 25 and 5 (xuacs).
+
 - 2026-10-16: LiveHive responses are now XRL "xon" binary bodies (reverse-engineered from the xam.xex schema
   bytecode and response decoder, notes `xon-hive-format.md`): GetLiveConfig = u32 total, u16 chunk count, chunks
   of u16 length + text (little-endian, no NUL), 42 bytes for the default hive; `getnetworkauthorizationlist`

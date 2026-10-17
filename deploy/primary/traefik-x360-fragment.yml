@@ -10,6 +10,12 @@ http:
       rule: PathPrefix(`/liveinfo`)
       priority: 40
       service: x360-liveinfo-http
+    x360-xuacs-web:
+      entryPoints:
+      - web
+      rule: PathPrefix(`/xuacs`)
+      priority: 40
+      service: x360-xuacs-http
     x360-notice-web:
       entryPoints:
       - web
@@ -21,6 +27,10 @@ http:
       loadBalancer:
         servers:
         - url: http://openpak-x360-liveinfo:10025
+    x360-xuacs-http:
+      loadBalancer:
+        servers:
+        - url: http://openpak-x360-xuacs:10005
     x360-notice-http:
       loadBalancer:
         servers:

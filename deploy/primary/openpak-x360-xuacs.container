@@ -1,0 +1,36 @@
+# PRIMARY host. NOT APPLIED: a file only. OpenPak Xbox 360 account service (x360-xuacs), Live service 5.
+# Reached through the security gateway: the D7 record lists service 5, the gateway proxies the tunnelled
+# connection to this container. Either Traefik (PathPrefix(/xuacs) on the plain-HTTP entrypoint, default
+# X360_GATEWAY_SERVICE_URL=http://145.241.199.19 for every port) or a per-port override on the secondary
+# (X360_GATEWAY_SERVICE_URLS=5=http://145.241.199.19:10005, which needs the port published) reaches it.
+[Unit]
+Description=OpenPak Xbox 360 account service (x360-xuacs): /xuacs/*.ashx, Live service 5
+
+[Container]
+ContainerName=openpak-x360-xuacs
+Image=ghcr.io/openpak/x360-kdc:latest
+Entrypoint=/usr/local/bin/x360-xuacs
+AutoUpdate=registry
+Network=openpak.network
+# Pin an unused address (run pin-ips.sh --apply for new quadlets).
+# IP=10.89.2.252
+# Traefik routes PathPrefix(/xuacs) on the plain-HTTP entrypoint to :10005.
+Environment=X360_XUACS_ADDR=:10005
+Environment=X360_XUACS_STATE=/var/lib/x360-xuacs
+Environment=X360_XUACS_RSA_KEY=/var/lib/x360-xuacs/rsa-key.pem
+Environment=X360_XUACS_DEBUG=true
+# Must define X360_XUACS_ACCOUNT_CORE_URL (a core gRPC address reachable from the openpak network) and
+# X360_XUACS_ACCOUNT_CORE_TOKEN (the core's internal key). Mode 0600, never committed.
+EnvironmentFile=%h/openpak/deploy/x360-xuacs/core.env
+# Token store, issued profiles and the RSA key. The container user is the image's app (uid 100).
+Volume=%h/openpak/deploy/x360-xuacs/state:/var/lib/x360-xuacs:rw,Z
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+UserNS=keep-id:uid=100,gid=101
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

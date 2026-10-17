@@ -180,6 +180,62 @@ empty keys, pairs without `=` and duplicate keys are rejected at startup. The po
 service roots: the dash reads `LiveServiceUrl.*` and `*UriRoot` keys from the hive to find the other services.
 Nothing is set by default; the example value is in `example.env`.
 
+## Account service (`x360-xuacs`)
+
+Fourth binary in the image (`/usr/local/bin/x360-xuacs`). Live service 5 is `xuacs`; D7 now advertises services
+1, 20, 25 and 5 (port = id, so the gateway sees destination port 5 and routes it with `X360_GATEWAY_SERVICE_URLS`,
+or Traefik `PathPrefix(/xuacs)` on port 80 does). It answers what the Guide.AccountRecovery applet ("Download
+Profile") sends: HTTP POST, `Content-Type: xon/5`, `X-Schema-Ver: 6.5`, little-endian bodies, strings
+`u16 len | bytes`. Spec: `scratch/wharf/kdcstub/notes/signin-download-profile.md` sections 4-6 and
+`xon-hive-format.md`. Code: `internal/xuacs`, `cmd/x360-xuacs`.
+
+**Envelope decision.** The XRL engine adds no envelope: the wire body is exactly the fields of the response
+schema. GetLiveConfig's `u32 total | u16 chunks | {u16 len, bytes}` is that one schema's own fields, so xuacs
+replies are the raw fields of the table below, with nothing around them. Not switchable; if a capture shows a
+wrapper, only `respond` in `xuacs.go` changes.
+
+| XRL | path | request | reply |
+|---|---|---|---|
+| 0x645 | `PassportMemberNameExists.ashx` | `u16 L \| email \| NUL` | `01` |
+| 0x64A (0x606) | `XePassportGetEncryptedProxyParameters.ashx` | `u32` | `u16 32 \| proxy blob \| u32 exponent \| u16 256 \| modulus (BE) \| 20 bytes` |
+| 0x608 | `XePassportLogin.ashx` | email, 256 B OAEP-wrapped 3DES key, 48 B password blob, proxy blob, `u32` | 28-byte token |
+| 0x60E | `XeGetLinkedGamertag.ashx` | token | `u64` online XUID, `u16 L \| gamertag \| NUL` |
+| 0x624 | `XeGetUserType.ashx` | `u64`, `u16 L \| gamertag` | `02` |
+| 0x1707 | `EnumFamilyMembers.ashx` | `u64`, `u16 N`, N tokens | `00 00` |
+| 0x63F | `RecoverAccount.ashx` | 45 B: machine id, token, online XUID, isDependent | online XUID, offline XUID, 16 B XenonKey, gamertag, `xbox.com`, `XBOX.COM` |
+| 0x649 | same path | variable (TFA receipt / RPS token) | refused with 501 and a logged error |
+
+**0x608.** The 24-byte 3DES key is RSA-OAEP (SHA-1, empty label) wrapped to the key 0x64A advertises. The password
+blob (3DES-CBC, IV 0, PKCS padding) is the password padded to 20 bytes with the fill byte `20-len`, then the 20-byte
+UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`; the skew must be at most 5 minutes (`X360_XUACS_MAX_SKEW`). The proxy blob
+must be one issued by 0x64A in the last 15 minutes (reusable inside that window). The password is checked with
+`Identity.VerifyPassword` (two-factor accounts fail closed), then a 28-byte random token, valid 24 hours, is bound
+to the account. Wrong credentials answer HTTP 401, skew or unknown proxy blob 403, malformed bodies 400, core
+errors 503.
+
+**Identity.** Online XUID = `0x0009` high word plus: the subject of the account's active `x360` link when it has
+one, else 40 bits derived from SHA-256 of the account id (stored, collision-checked). Gamertag = the link's public
+code, else the letters and digits of the email's local part (at most 15). Offline XUID (`0xE000` plus 48 random
+bits) and the XenonKey (16 random bytes) are created once per account and console and stored (`xuacs.json`, 0600).
+0x63F is the enrol point: `SignInService.Link` claims `x360-console` (the 12 digits of the gateway session, from
+the `X-X360-Account` header the gateway sets) and `x360` (XUID hex, gamertag as public code) for the account; a
+console or profile owned by another account is refused with 403 and nothing is issued.
+
+**Guessed (not established by the notes).** 0x645 always answers exists: the core client has no lookup by email
+and a constant avoids an enumeration oracle (a wrong email fails at 0x608). The 20 trailing bytes of 0x64A are
+SHA-1 of the modulus. The online XUID takes 40 low bits. The fallback gamertag from the email. Without the gateway
+header the console is the 12 low decimal digits of the machine id. `X-X360-Account` is trusted as sent by the
+gateway: Traefik also exposes `/xuacs` on port 80, so a direct caller could set it; the password is still
+required, but restrict the route if that matters. The domain/realm strings follow the task (`xbox.com`/`XBOX.COM`;
+the notes also mention `PASSPORT.NET`). Error replies are plain HTTP statuses; how the applet maps them to the
+messages (the `0x80152016`-style codes) is unknown. The 0x649 body layout is unparsed.
+
+Config: `X360_XUACS_ADDR` (default `:5`), `X360_XUACS_RSA_KEY` (RSA-2048 PEM, generated 0600 when missing; default
+`<state>/rsa-key.pem`), `X360_XUACS_ACCOUNT_CORE_URL` and `_TOKEN` (both required), `X360_XUACS_STATE` (default
+`x360-xuacs-state`), `X360_XUACS_MAX_SKEW`, `X360_XUACS_DEBUG`. Every request is logged (path, user agent, headers,
+body hex when 64 bytes or less) and every response status. Deploy file (not applied):
+`deploy/primary/openpak-x360-xuacs.container` plus the Traefik router in `traefik-x360-fragment.yml`.
+
 ## Dev key material
 
 Never commit keys. The dev set lives in `../scratch/wharf/keys/` (mode 0600 where private) and was made with
@@ -228,7 +284,8 @@ After the SG handshake XAM runs TCP inside the secure channel: "code 3" datagram
 `scratch/wharf/kdcstub/notes/svc-open-layout.md`, code in `internal/gateway/tcp.go`). The gateway is the passive
 end of that connection (`internal/gateway/transport.go`): SYN -> SYN-ACK (MSS 1264, random ISN, window 0x4030),
 the client's HTTP request is reassembled from its data segments (out-of-order held, every segment ACKed), proxied
-to `X360_GATEWAY_SERVICE_URL` (path and headers kept, `Host` set to the backend, body forwarded; 502/503/400 on
+to the backend for the connection's destination port (`X360_GATEWAY_SERVICE_URLS`, else `X360_GATEWAY_SERVICE_URL`;
+path and headers kept, plus `X-X360-Account: <digits>@xbox.com`, the session's console, replacing any client value; `Host` set to the backend, body forwarded; 502/503/400 on
 failure) and the response is sent as plain HTTP/1.1 with `Content-Length` and `Connection: close` in segments of
 at most 1200 bytes (PSH on the last, window-limited, go-back-N on a duplicate ACK), then a FIN. Client FIN is
 ACKed, RST drops the connection. Every segment (ports, flags, seq, ack, length), the HTTP request line and
@@ -250,6 +307,7 @@ The response length is padded to a multiple of 4 with an `X-Pad` header so no se
 | `X360_KDC_ACCOUNT_CORE_URL` | production: yes | | account core gRPC listener (`http://host:7000`, cleartext HTTP/2, or `https://`). Set together with the token or not at all |
 | `X360_KDC_ACCOUNT_CORE_TOKEN` | with URL | | the core's internal key (`x-internal-key`) |
 | `X360_KDC_DEBUG` | no | `false` | debug-level logging |
+| `X360_GATEWAY_SERVICE_URLS` | no | | x360-gateway: per destination port backends, `port=url;port=url` (e.g. `80=http://145.241.199.19;5=http://145.241.199.19:10005`); ports not listed use `X360_GATEWAY_SERVICE_URL` |
 | `X360_GATEWAY_SERVICE_URL` | no | `http://openpak-x360-liveinfo:10025` | x360-gateway: HTTP backend the service transport proxies to (`http://145.241.199.19` on the deployed secondary) |
 
 **Production must set the account-core variables.** The core cannot hold a device without an owner, so a console
@@ -279,7 +337,7 @@ shared env file (the core's internal key; never print or commit it).
 
 ## Layout
 
-`cmd/x360-kdc` main; `internal/config`; `internal/der` (the DER subset, nonce rule); `internal/rc4hmac` (etype 23
+`cmd/x360-kdc` main (also `cmd/x360-gateway`, `cmd/x360-liveinfo`, `cmd/x360-xuacs`); `internal/xuacs`; `internal/config`; `internal/der` (the DER subset, nonce rule); `internal/rc4hmac` (etype 23
 and `D(K,N)`); `internal/kdc` (`Handler.Handle` is the whole protocol as a function from datagram to reply,
 `as.go` MACS/XEAS, `tgs.go` XETGS, `cert.go` certificate and key loading, `accounts.go` the store, `reply.go`
 the encoders, `Server` the receive loop). Go standard library only. License: AGPL-3.0-only, like the rest of the
