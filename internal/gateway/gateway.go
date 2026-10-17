@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"openpak/x360-kdc/internal/kdc"
+	"openpak/x360-kdc/internal/rc4hmac"
 )
 
 // Message types the gateway itself acts on.
@@ -32,6 +33,8 @@ const (
 	TypeAck       = 0x0153 // empty acknowledgement
 	TypeUserInfo  = 0x0253 // keepalive / per-user records from XAM
 	TypeUserAck   = 0x0953 // reply to 0x0253
+	TypeTicket    = 0x0553 // new ticket for the session after a user logon (token u64 at +4, AP-REQ at +12)
+	TypeTicketAck = 0x0653 // its acknowledgement: the 8-byte token echoed
 	TypeChallenge = 0x0A53 // challenge result; any authenticated reply moves XAM's gateway state 5 -> 6
 )
 
@@ -230,14 +233,14 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 		g.log().Info("unverifiable data", "src", src, "account", s.Account, "len", len(pkt), "hex", hex.EncodeToString(pkt))
 		return nil, err
 	}
-	// The client puts 0x80 into the first SPI byte on its first data packet,
-	// and 0x40 on the 544-byte message it sends right after a user logon's
-	// TGS (seen live 2026-10-17); both are flags, not part of the SPI.
-	if spi[0]&0x3f != s.ServerSPI[0] || string(spi[1:]) != string(s.ServerSPI[1:]) {
+	// The server SPI's first byte is always 0; the client puts per-packet flags
+	// there (0x80 on its first data packet, 0x20/0x40 on the 0x0553 ticket
+	// messages after a user logon), so only bytes 1..3 identify the session.
+	if string(spi[1:]) != string(s.ServerSPI[1:]) {
 		return nil, fmt.Errorf("data SPI %x is not this session's", spi)
 	}
-	if spi[0]&0x40 != 0 {
-		g.log().Info("data with SPI flag 0x40", "src", src, "spi", hex.EncodeToString(spi))
+	if spi[0]&0x7f != 0 {
+		g.log().Info("data SPI flags", "src", src, "spi", hex.EncodeToString(spi))
 	}
 	s.expires = now.Add(SessionTTL)
 	s.lastSeen = now
@@ -251,6 +254,9 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 		delete(g.sessions, src)
 		g.log().Info("session closed", "src", src, "account", s.Account)
 		return nil, nil
+	}
+	if m.Type == TypeTicket {
+		return g.ticketMessage(s, src, m)
 	}
 	handlers := g.Handlers
 	if handlers == nil {
@@ -359,4 +365,64 @@ func handleUserInfo(s *Session, m Message) ([]Message, error) {
 	}
 	slog.Info("user info", "src", s.Client, "account", s.Account, "echo", echo, "records", recs)
 	return []Message{{Type: TypeUserAck, Body: binary.LittleEndian.AppendUint32(nil, m.Counter+1)}}, nil
+}
+
+// ticketMessage answers 0x0553 (XAM FUN_8174F110), the user logon's new sg
+// ticket for this session: body = u32 flags | u64 token | AP-REQ. The client
+// (FUN_81754C38) waits for 0x0653 whose 8-byte body equals a token it sent;
+// the session keys do not change. The AP-REQ's ticket names the signed-in
+// users, which the session takes over (presence); the client does not need
+// that, so a ticket that does not open is logged and still acknowledged.
+func (g *Gateway) ticketMessage(s *Session, src netip.AddrPort, m message) ([][]byte, error) {
+	if len(m.Body) < 12 {
+		return nil, fmt.Errorf("0x0553 body %d bytes", len(m.Body))
+	}
+	token := m.Body[4:12]
+	if users, err := g.ticketUsers(m.Body[12:]); err != nil {
+		g.log().Info("0x0553 ticket not read", "src", src, "err", err.Error())
+	} else {
+		s.Users = users
+		g.log().Info("0x0553 session ticket", "src", src, "account", s.Account, "users", usersHeader(users))
+	}
+	s.sendCtr++
+	g.log().Info("data reply", "src", src, "type", fmt.Sprintf("%#06x", TypeTicketAck), "ctr", s.sendCtr, "token", hex.EncodeToString(token))
+	return [][]byte{seal(s.s2c, s.ClientSPI, s.sendCtr, TypeTicketAck, append([]byte{}, token...))}, nil
+}
+
+// ticketUsers opens the ticket inside an AP-REQ (ours: usage 2 under the
+// ticket key) and returns the users it carries.
+func (g *Gateway) ticketUsers(apReq []byte) ([]kdc.TicketUser, error) {
+	ap, err := kdc.AppSeqFields(apReq, kdc.TagAPReq)
+	if err != nil {
+		return nil, fmt.Errorf("AP-REQ: %w", err)
+	}
+	tkt, ok := ap[3]
+	if !ok {
+		return nil, errors.New("AP-REQ ticket missing")
+	}
+	tf, err := kdc.AppSeqFields(tkt.Raw, kdc.TagTicket)
+	if err != nil {
+		return nil, err
+	}
+	enc, ok := tf[3]
+	if !ok {
+		return nil, errors.New("ticket enc-part missing")
+	}
+	cipher, err := kdc.EncryptedData(enc.Raw)
+	if err != nil {
+		return nil, err
+	}
+	plain, err := rc4hmac.Decrypt(g.TicketKey, rc4hmac.UsageTicket, cipher)
+	if err != nil {
+		return nil, errors.New("ticket not issued by this server")
+	}
+	inner, err := kdc.AppSeqFields(plain, kdc.TagEncTkt)
+	if err != nil {
+		return nil, err
+	}
+	id, err := kdc.ReadTicketIdentity(inner)
+	if err != nil {
+		return nil, err
+	}
+	return id.Users, nil
 }

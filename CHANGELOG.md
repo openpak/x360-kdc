@@ -104,3 +104,8 @@
 - 2026-10-17: v0.8.5 gateway: after the user TGS the console sends a 544-byte secure-channel message with 0x40
   in the first SPI byte (it authenticates under the session keys); it was refused as a foreign SPI, the console
   tore the session down and the sign-in failed with 800704DB. 0x40 is accepted as a flag like 0x80 and logged.
+
+- 2026-10-17: v0.8.6 gateway answers 0x0553 (the user logon's new sg ticket for the open session: u32 flags, u64
+  token, AP-REQ) with 0x0653 echoing the token (XAM FUN_81754C38 waits for exactly that; no key change). Without
+  it XAM retried, closed the session (0x0053 reason 8) and the sign-in ended in 800704DB. The session takes the
+  users from the ticket (presence). SPI: only bytes 1..3 identify the session, byte 0 carries per-packet flags.

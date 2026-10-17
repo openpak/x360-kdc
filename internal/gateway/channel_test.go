@@ -116,3 +116,26 @@ func TestSessionExpiry(t *testing.T) {
 		t.Fatal("expired session still served")
 	}
 }
+
+// 0x0553 after a user logon (SPI flag 0x20/0x40) is acknowledged with 0x0653
+// echoing its 8-byte token, even when the AP-REQ inside cannot be read.
+func TestTicketMessageAck(t *testing.T) {
+	c2s, s2c := testKeys(t)
+	src := netip.MustParseAddrPort("10.0.2.15:49152")
+	now := time.Unix(1_700_000_000, 0)
+	g := &Gateway{Now: func() time.Time { return now }, Log: slog.New(slog.NewTextHandler(&strings.Builder{}, nil)),
+		TicketKey: make([]byte, 16),
+		sessions: map[netip.AddrPort]*Session{src: {Client: src, Account: "x", ClientSPI: []byte{1, 2, 3, 4},
+			ServerSPI: []byte{0, 0xab, 0xc1, 0x23}, c2s: c2s, s2c: s2c, expires: now.Add(SessionTTL)}}}
+	body := append([]byte{0, 0, 0, 0x20, 1, 2, 3, 4, 5, 6, 7, 8}, 0x6e, 0)
+	for i, flag := range []byte{0x20, 0x40} {
+		out := g.Handle(seal(c2s, []byte{flag, 0xab, 0xc1, 0x23}, uint32(93+i), TypeTicket, body), src)
+		if len(out) != 1 {
+			t.Fatalf("flag %#x: no reply", flag)
+		}
+		_, m, err := open(s2c, out[0])
+		if err != nil || m.Type != TypeTicketAck || !bytes.Equal(m.Body, []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
+			t.Fatalf("flag %#x: %+v %v", flag, m, err)
+		}
+	}
+}
