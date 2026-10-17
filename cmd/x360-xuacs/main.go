@@ -74,11 +74,18 @@ func main() {
 			os.Exit(2)
 		}
 		front.Fallback = xuacs.WLIDLoginHost
-		tsrv := front.Serve(&http.Server{Addr: cfg.TLSAddr, Handler: h.WLID(), ReadHeaderTimeout: 10 * time.Second,
+		front.Log = log.Info
+		h.TrustLeaf = front.Issued
+		tsrv := front.Serve(&http.Server{Handler: h.WLID(), ReadHeaderTimeout: 10 * time.Second,
 			ErrorLog: slog.NewLogLogger(log.Handler(), slog.LevelInfo)})
+		tln, err := net.Listen("tcp", cfg.TLSAddr)
+		if err != nil {
+			log.Error("wlid listen", "err", err)
+			os.Exit(1)
+		}
 		go func() {
 			log.Info("x360-xuacs WLID TLS listening", "addr", cfg.TLSAddr)
-			if err := tsrv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := tsrv.ServeTLS(&tlsfront.CountingListener{Listener: tln, Log: log.Info}, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Error("wlid serve", "err", err)
 				os.Exit(1)
 			}

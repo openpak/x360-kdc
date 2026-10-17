@@ -123,6 +123,8 @@ type Handler struct {
 	MaxSkew time.Duration    // default DefaultMaxSkew
 	// WLIDKey signs the Windows Live ID access and refresh tokens (wlid.go).
 	WLIDKey []byte
+	// TrustLeaf decides /xsig/ValidateCertificate.ashx (xsig.go); nil trusts nothing.
+	TrustLeaf func(der []byte) bool
 
 	mu    sync.Mutex
 	proxy map[string]time.Time // issued proxy blobs (hex) -> expiry
@@ -173,6 +175,15 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"account", r.Header.Get(gateway.AccountHeader), "body_len", len(body), "body_hex", hex.EncodeToString(shown),
 		"remote", r.RemoteAddr)
 
+	if strings.EqualFold(r.URL.Path, PathValidateCert) {
+		out := h.validateCert(body)
+		w.Header().Set("Content-Type", "xon/c")
+		w.Header().Set("Content-Length", strconv.Itoa(len(out)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(out)
+		log.Info("response", "path", r.URL.Path, "status", w.status, "body_hex", hex.EncodeToString(out))
+		return
+	}
 	if id, ok := countryInfoID(r.URL.Path); ok {
 		h.serveCountryInfo(w, r, id)
 		log.Info("response", "path", r.URL.Path, "status", w.status)

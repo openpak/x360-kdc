@@ -139,9 +139,10 @@ const (
 // 0x80151100 and the logon result becomes 0x80151925; 5 is xuacs, the account service (XRL 0x645..0x1707,
 // /xuacs/*.ashx) the Download Profile applet needs; 11 serves the applet's
 // CountryInfo download (/xedl/ProfileInfo/<id>/CountryInfo.cib), without it the
-// time-zone step fails with 0x800704DB. Overridable from the
+// time-zone step fails with 0x800704DB; 12 is xsig, which XAM's TLS provider asks
+// to validate a Windows Live ID server certificate mid-handshake. Overridable from the
 // environment (X360_KDC_D7_SERVICES) for experiments.
-var D7Services = []int{1, 20, 25, 5, 11}
+var D7Services = []int{1, 20, 25, 5, 11, 12}
 
 // D7Extended lists the "extended" service entries at D7 offset 0x7C (four
 // slots of LE u32 id, LE u16 port, u8 status). Unlike the bitmap services,

@@ -86,3 +86,9 @@
   in, not in a game), endpoint `x360:<online xuid>`, lease 60 s renewed every 15 s, expired when no live
   session carries the user or the console has been silent for 3 minutes. Every platform's friend list reads it
   through `GetPresence` ("Xbox 360"). Wharf: NtDeleteFile (profile replace in Download Profile).
+
+- 2026-10-17: v0.8.2 the WLID TLS handshake asks Live service 12 (`/xsig/ValidateCertificate.ashx`, XRL 0xC0B) to
+  validate the server leaf mid-handshake; without 12 in D7 XAM closed the socket silently (80151103). D7 default
+  adds 12, x360-xuacs answers (u32 HRESULT 0 + u64 FILETIME cache expiry for leaves its WLID CA issued,
+  0x80090325 otherwise), Traefik routes `/xsig`. Leaf notBefore backdated 48 h; TLS logs the ClientHello and
+  per-connection byte counts.

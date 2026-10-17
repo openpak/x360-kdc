@@ -162,6 +162,8 @@ func TestFullExchange(t *testing.T) {
 			want = 0xf3
 		case 2: // service 11: bits 6-7
 			want = 0x3f
+		case 3: // service 12: bits 0-1
+			want = 0xfc
 		case 5: // service 20: bits 0-1
 			want = 0xfc
 		case 6: // service 25: bits 2-3
@@ -408,7 +410,7 @@ func TestD7Record(t *testing.T) {
 	if len(rec) != D7Len || !bytes.Equal(rec[0x24:0x28], []byte{203, 0, 113, 9}) {
 		t.Fatalf("%x", rec)
 	}
-	if rec[0x5c] != 0xf3 || rec[0x5c+5] != 0xfc || rec[0x5c+1] != 0xf3 || rec[0x5c+2] != 0x3f || rec[0x5c+3] != 0xff || rec[0x7b] != 0xff {
+	if rec[0x5c] != 0xf3 || rec[0x5c+5] != 0xfc || rec[0x5c+1] != 0xf3 || rec[0x5c+2] != 0x3f || rec[0x5c+3] != 0xfc || rec[0x7b] != 0xff {
 		t.Fatalf("service map %x", rec[0x5c:0x7c])
 	}
 	if !bytes.Equal(rec[0xb0:0xb8], []byte{1, 0, 0, 0, 0, 0, 0, 0}) {

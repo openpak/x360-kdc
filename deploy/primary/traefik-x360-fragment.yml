@@ -32,6 +32,12 @@ http:
       rule: PathPrefix(`/xuacs`)
       priority: 40
       service: x360-xuacs-http
+    x360-xsig-web:
+      entryPoints:
+      - web
+      rule: PathPrefix(`/xsig`)
+      priority: 40
+      service: x360-xuacs-http
     x360-xedl-web:
       entryPoints:
       - web

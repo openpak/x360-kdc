@@ -30,8 +30,10 @@ type Front struct {
 	ca      *x509.Certificate
 	caKey   any
 	leafKey *rsa.PrivateKey
-	// Fallback names the leaf for a client that sends no SNI (XMPP).
+	// Fallback names the leaf for a client that sends no SNI.
 	Fallback string
+	// Log, when set, receives each ClientHello's parameters.
+	Log func(msg string, args ...any)
 
 	mu    sync.Mutex
 	cache map[string]*tls.Certificate // ponytail: unbounded; Traefik only passes the PS3 families through
@@ -122,6 +124,11 @@ func (f *Front) Config() *tls.Config {
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			// Exactly as sent: the lab leaves kept the firmware's case
 			// (IV0001-NPXS01001-00.auth...), and its name check may not fold it.
+			if f.Log != nil {
+				f.Log("tls client hello", "sni", hello.ServerName, "remote", hello.Conn.RemoteAddr().String(),
+					"versions", fmt.Sprintf("%04x", hello.SupportedVersions), "suites", fmt.Sprintf("%04x", hello.CipherSuites),
+					"sigalgs", fmt.Sprintf("%04x", hello.SignatureSchemes), "extensions", fmt.Sprintf("%04x", hello.Extensions))
+			}
 			name := strings.TrimSuffix(hello.ServerName, ".")
 			if name == "" {
 				name = f.Fallback
@@ -155,7 +162,7 @@ func (f *Front) leaf(host string) (*tls.Certificate, error) {
 	tpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: host, Organization: []string{"OpenPak"}},
-		NotBefore:    time.Now().Add(-time.Hour),
+		NotBefore:    time.Now().Add(-48 * time.Hour), // the guest clock may lag
 		NotAfter:     time.Now().AddDate(2, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -170,4 +177,14 @@ func (f *Front) leaf(host string) (*tls.Certificate, error) {
 	c := &tls.Certificate{Certificate: [][]byte{der}, PrivateKey: f.leafKey}
 	f.cache[host] = c
 	return c, nil
+}
+
+// Issued reports whether der is a certificate this front's CA signed (the
+// answer XAM asks Live for through /xsig/ValidateCertificate.ashx).
+func (f *Front) Issued(der []byte) bool {
+	c, err := x509.ParseCertificate(der)
+	if err != nil {
+		return false
+	}
+	return c.CheckSignatureFrom(f.ca) == nil
 }

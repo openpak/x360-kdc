@@ -153,3 +153,28 @@ func hexStr(b []byte) string {
 	}
 	return string(out)
 }
+
+func TestValidateCert(t *testing.T) {
+	r := newRig(t, "")
+	good := []byte{0x30, 1, 2}
+	r.h.TrustLeaf = func(der []byte) bool { return string(der) == string(good) }
+	body := append([]byte{3, 0}, good...)
+	st, b := r.postRaw(PathValidateCert, body)
+	if st != 200 || len(b) != 12 || b[0]|b[1]|b[2]|b[3] != 0 || b[11] == 0 && b[10] == 0 {
+		t.Fatalf("trusted: %d %x", st, b)
+	}
+	st, b = r.postRaw(PathValidateCert, []byte{3, 0, 9, 9, 9})
+	if st != 200 || len(b) != 12 || b[3] != 0x80 || b[2] != 0x09 {
+		t.Fatalf("untrusted: %d %x", st, b)
+	}
+}
+
+func (r *rig) postRaw(path string, body []byte) (int, []byte) {
+	resp, err := http.Post(r.srv.URL+path, "xon/c", bytes.NewReader(body))
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, b
+}
