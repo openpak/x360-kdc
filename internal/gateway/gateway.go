@@ -65,6 +65,7 @@ type Session struct {
 	lastRecv  uint32
 	conns     map[tcpKey]*tcpConn // TCP connections inside the channel
 	expires   time.Time
+	lastSeen  time.Time // last authenticated datagram from the client
 }
 
 // Gateway is the protocol as a function from datagram to replies.
@@ -183,7 +184,7 @@ func (g *Gateway) initiate(data []byte, src netip.AddrPort, now time.Time) ([]by
 		g.sessions = map[netip.AddrPort]*Session{}
 	}
 	g.sessions[src] = &Session{Client: src, Account: v.name, Users: v.users, ClientSPI: append([]byte{}, in.clientSPI...),
-		ServerSPI: p.spi, c2s: c2s, s2c: s2c, expires: now.Add(SessionTTL)}
+		ServerSPI: p.spi, c2s: c2s, s2c: s2c, expires: now.Add(SessionTTL), lastSeen: now}
 	g.log().Info("authenticated", "src", src, "account", v.name, "chunks", fmt.Sprintf("%#x", in.chunks),
 		"client_spi", hex.EncodeToString(in.clientSPI), "server_spi", hex.EncodeToString(p.spi),
 		"len", len(data), "reply_len", len(reply))
@@ -234,6 +235,7 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 		return nil, fmt.Errorf("data SPI %x is not this session's", spi)
 	}
 	s.expires = now.Add(SessionTTL)
+	s.lastSeen = now
 	replay := m.Counter != 0 && m.Counter <= s.lastRecv
 	if m.Counter > s.lastRecv {
 		s.lastRecv = m.Counter
@@ -288,6 +290,7 @@ func (g *Gateway) tcpData(s *Session, pkt []byte, src netip.AddrPort, now time.T
 		return nil, err
 	}
 	s.expires = now.Add(SessionTTL)
+	s.lastSeen = now
 	if sg.Counter > s.lastRecv {
 		s.lastRecv = sg.Counter
 	}

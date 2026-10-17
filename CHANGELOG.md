@@ -80,3 +80,9 @@
   with a user TGT whose authorization-data names the console and the authorised users; the TGS accepts D6
   user ids that the chain authorised (D7 user words 0) instead of refusing them; the gateway accepts those
   tickets and passes `X-X360-Users` upstream. Unit-tested only.
+
+- 2026-10-17: v0.8.1 presence. The gateway publishes every user signed in on a live session (users from the
+  user-logon ticket) to the account core: `Sessions.RegisterSession` namespace `xbox360`, title empty (signed
+  in, not in a game), endpoint `x360:<online xuid>`, lease 60 s renewed every 15 s, expired when no live
+  session carries the user or the console has been silent for 3 minutes. Every platform's friend list reads it
+  through `GetPresence` ("Xbox 360"). Wharf: NtDeleteFile (profile replace in Download Profile).

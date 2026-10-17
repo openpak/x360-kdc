@@ -27,6 +27,8 @@ Environment=X360_GATEWAY_ACCOUNTS=/var/lib/x360-kdc/accounts.json
 Environment=X360_GATEWAY_CONSOLE_CA=/run/secrets/console-ca-public.pem
 Environment=X360_GATEWAY_SERVICE_URL=http://145.241.199.19
 Environment=X360_GATEWAY_DEBUG=true
+# Presence (namespace xbox360) in the account core: same core URL/token as the KDC.
+EnvironmentFile=%h/openpak/deploy/x360-kdc/core.env
 
 [Service]
 Restart=always

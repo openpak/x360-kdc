@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"openpak/x360-kdc/internal/accountcore"
 	"openpak/x360-kdc/internal/config"
 	"openpak/x360-kdc/internal/gateway"
 	"openpak/x360-kdc/internal/kdc"
@@ -59,6 +60,20 @@ func main() {
 	defer stop()
 	log.Info("x360-gateway listening", "addr", conn.LocalAddr(), "accounts", store.Len(), "service_url", cfg.ServiceURL, "service_urls", cfg.ServiceURLs, "debug", cfg.Debug)
 	g := &gateway.Gateway{TicketKey: ticketKey, AccountsPath: cfg.Accounts, CA: ca, Now: time.Now, Log: log, ServiceURL: cfg.ServiceURL, ServiceURLs: cfg.ServiceURLs}
+	// Presence: users signed in on a live session are online in the account
+	// core (namespace xbox360). The core URL/token are the KDC's (same env file).
+	if u, tok := os.Getenv("X360_KDC_ACCOUNT_CORE_URL"), os.Getenv("X360_KDC_ACCOUNT_CORE_TOKEN"); u != "" && tok != "" {
+		core, err := accountcore.New(u, tok, nil)
+		if err != nil {
+			log.Error("account core", "err", err)
+			os.Exit(2)
+		}
+		p := &gateway.Presence{Gateway: g, Core: core, Log: log, Client: os.Getenv("X360_GATEWAY_PRESENCE_CLIENT")}
+		go p.Run(ctx)
+		log.Info("presence publishing enabled", "namespace", gateway.PresenceNamespace, "core", u)
+	} else {
+		log.Warn("presence publishing off: X360_KDC_ACCOUNT_CORE_URL/_TOKEN not set")
+	}
 	srv := &gateway.Server{Gateway: g, Log: log}
 	if err := srv.Serve(ctx, conn); err != nil {
 		log.Error("serve", "err", err)
