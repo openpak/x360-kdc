@@ -171,6 +171,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"account", r.Header.Get(gateway.AccountHeader), "body_len", len(body), "body_hex", hex.EncodeToString(shown),
 		"remote", r.RemoteAddr)
 
+	if id, ok := countryInfoID(r.URL.Path); ok {
+		h.serveCountryInfo(w, r, id)
+		log.Info("response", "path", r.URL.Path, "status", w.status)
+		return
+	}
+
 	var out []byte
 	var err error
 	switch strings.ToLower(r.URL.Path) {

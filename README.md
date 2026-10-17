@@ -204,6 +204,14 @@ wrapper, only `respond` in `xuacs.go` changes.
 | 0x1707 | `EnumFamilyMembers.ashx` | `u64`, `u16 N`, N tokens | `00 00` |
 | 0x63F | `RecoverAccount.ashx` | 45 B: machine id, token, online XUID, isDependent | online XUID, offline XUID, 16 B XenonKey, gamertag, `xbox.com`, `XBOX.COM` |
 | 0x649 | same path | variable (TFA receipt / RPS token) | refused with 501 and a logged error |
+| 0x627 | `XeGetAccountInfoFromPassport.ashx` | token, `u64` machine id, `u32` title id | gamertag, empty strings, DOB 2000-01-01, country 103 |
+
+**CountryInfo (Live service 11).** After 0x627 the applet's time-zone step downloads
+`/xedl/ProfileInfo/<CountryId>/CountryInfo.cib` from service 11 (GET, no body). D7 must list 11: without it the
+console's service lookup fails before any packet (0x80151100, shown as 800704DB with the "problem with the
+credentials" dialog). x360-xuacs serves the file for every country id (Traefik `PathPrefix(/xedl)`): big-endian,
+UTF-16BE NUL-terminated strings, US settings, default time zone `PACIFIC`, one English locale, empty lists. Layout
+in `internal/xuacs/countryinfo.go`.
 
 **0x608.** The 24-byte 3DES key is RSA-OAEP (SHA-1, empty label) wrapped to the key 0x64A advertises. The password
 blob (3DES-CBC, IV 0, PKCS padding) is the password padded to 20 bytes with the fill byte `20-len`, then the 20-byte

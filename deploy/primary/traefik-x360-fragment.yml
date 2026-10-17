@@ -16,6 +16,12 @@ http:
       rule: PathPrefix(`/xuacs`)
       priority: 40
       service: x360-xuacs-http
+    x360-xedl-web:
+      entryPoints:
+      - web
+      rule: PathPrefix(`/xedl`)
+      priority: 40
+      service: x360-xuacs-http
     x360-notice-web:
       entryPoints:
       - web

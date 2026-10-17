@@ -25,6 +25,12 @@
 - 2026-10-17: v0.7.3 xuacs: 0x627 XeGetAccountInfoFromPassport (asked by the Account Recovery time-zone step before
   0x63F): gamertag as first name, empty strings, DOB 2000-01-01, country US.
 
+- 2026-10-17: v0.7.5 Download Profile past 0x627: the applet's next step downloads
+  `/xedl/ProfileInfo/<CountryId>/CountryInfo.cib` from Live service 11, which D7 did not list, so the console's
+  service lookup failed (0x80151100 -> 800704DB, "problem with the credentials"). D7 default adds 11 (deployed
+  `X360_KDC_D7_SERVICES=1,20,25,5,11`); x360-xuacs serves the CountryInfo file (US settings, default time zone
+  PACIFIC); Traefik routes `/xedl` to it.
+
 - 2026-10-17: v0.7.4 xuacs reconcile loop (startup, then every 60 s): every active account in the core (Identity.ListAccounts,
   keyset pages of 200) gets an active `x360` profile link with its own online XUID (stored or derived by
   `Store.OnlineXUID`), console-less. No `x360-console` link is ever invented (the console subject comes from the
