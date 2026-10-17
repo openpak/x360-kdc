@@ -96,7 +96,10 @@ type GatewayConfig struct {
 	ConsoleCA string // X360_GATEWAY_CONSOLE_CA: console CA public key PEM, to re-verify stored certificates
 	// ServiceURL is the HTTP backend of the service transport (X360_GATEWAY_SERVICE_URL).
 	ServiceURL string
-	Debug      bool // X360_GATEWAY_DEBUG
+	// ServiceURLs is X360_GATEWAY_SERVICE_URLS ("port=url;port=url"): per destination port
+	// overrides of ServiceURL, which stays the default for every other port.
+	ServiceURLs map[uint16]string
+	Debug       bool // X360_GATEWAY_DEBUG
 }
 
 // LoadGateway reads the gateway environment through getenv.
@@ -118,6 +121,11 @@ func LoadGateway(getenv func(string) string) (*GatewayConfig, error) {
 	if u, err := url.Parse(c.ServiceURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return nil, fmt.Errorf("X360_GATEWAY_SERVICE_URL %q is not an http(s) URL", c.ServiceURL)
 	}
+	urls, err := ParseServiceURLs(getenv("X360_GATEWAY_SERVICE_URLS"))
+	if err != nil {
+		return nil, err
+	}
+	c.ServiceURLs = urls
 	for _, r := range []struct{ v, name string }{
 		{c.TicketKey, "X360_GATEWAY_TICKET_KEY"},
 		{c.Accounts, "X360_GATEWAY_ACCOUNTS"},
@@ -128,6 +136,36 @@ func LoadGateway(getenv func(string) string) (*GatewayConfig, error) {
 		}
 	}
 	return c, nil
+}
+
+// ParseServiceURLs parses "80=http://host;5=http://host:10005" into a port map.
+// Empty input means no overrides.
+func ParseServiceURLs(v string) (map[uint16]string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return nil, nil
+	}
+	out := map[uint16]string{}
+	for _, pair := range strings.Split(v, ";") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		ps, raw, ok := strings.Cut(pair, "=")
+		port, err := strconv.ParseUint(strings.TrimSpace(ps), 10, 16)
+		raw = strings.TrimSpace(raw)
+		if !ok || err != nil || port == 0 {
+			return nil, fmt.Errorf("X360_GATEWAY_SERVICE_URLS: %q is not port=url", pair)
+		}
+		if u, err := url.Parse(raw); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return nil, fmt.Errorf("X360_GATEWAY_SERVICE_URLS: %q is not an http(s) URL", raw)
+		}
+		if _, dup := out[uint16(port)]; dup {
+			return nil, fmt.Errorf("X360_GATEWAY_SERVICE_URLS: port %d given twice", port)
+		}
+		out[uint16(port)] = raw
+	}
+	return out, nil
 }
 
 // DefaultLiveInfoAddr is the LiveHive HTTP port (Live service 25).

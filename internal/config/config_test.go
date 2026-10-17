@@ -150,3 +150,18 @@ func TestAccountCoreConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestParseServiceURLs(t *testing.T) {
+	m, err := ParseServiceURLs("80=http://145.241.199.19; 5=http://145.241.199.19:10005")
+	if err != nil || len(m) != 2 || m[5] != "http://145.241.199.19:10005" || m[80] != "http://145.241.199.19" {
+		t.Fatalf("%v %v", m, err)
+	}
+	if m, err := ParseServiceURLs(""); m != nil || err != nil {
+		t.Fatal("empty")
+	}
+	for _, bad := range []string{"80", "x=http://a", "0=http://a", "5=ftp://a", "5=http://a;5=http://b", "70000=http://a"} {
+		if _, err := ParseServiceURLs(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}

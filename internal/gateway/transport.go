@@ -28,6 +28,9 @@ const (
 	maxResponse = 4 << 20
 )
 
+// AccountHeader carries the session's console account to the service backend.
+const AccountHeader = "X-X360-Account"
+
 type tcpKey struct{ client, server uint16 }
 
 type tcpConn struct {
@@ -159,7 +162,7 @@ func (g *Gateway) tcpSegment(s *Session, sg tcpSeg, now time.Time) [][]byte {
 	}
 	if !c.responded && requestComplete(c.req) {
 		c.responded = true
-		c.resp = g.serve(c.req, log)
+		c.resp = g.serve(c.req, key.server, s.Account, log)
 		c.finQueued = true
 	}
 	if needAck {
@@ -241,26 +244,27 @@ func smallBodyHex(raw []byte) string {
 
 // serve proxies the raw HTTP request to the service backend and returns the
 // raw HTTP response (always well formed, 502/503 when the backend is not reachable).
-func (g *Gateway) serve(raw []byte, log interface{ Info(string, ...any) }) []byte {
+func (g *Gateway) serve(raw []byte, port uint16, account string, log interface{ Info(string, ...any) }) []byte {
 	reqLine, _, _ := strings.Cut(string(raw), "\r\n")
 	head, _, _ := strings.Cut(string(raw), "\r\n\r\n")
-	log.Info("http request", "line", reqLine, "headers", strings.ReplaceAll(head, "\r\n", " | "), "bytes", len(raw),
+	log.Info("http request", "port", port, "line", reqLine, "headers", strings.ReplaceAll(head, "\r\n", " | "), "bytes", len(raw),
 		"body_hex", smallBodyHex(raw))
-	status, hdr, body := g.upstream(raw)
+	status, hdr, body := g.upstream(raw, port, account)
 	resp := buildResponse(status, hdr, body)
 	log.Info("http response", "status", status, "body_len", len(body), "bytes", len(resp))
 	return resp
 }
 
-func (g *Gateway) upstream(raw []byte) (string, http.Header, []byte) {
+func (g *Gateway) upstream(raw []byte, port uint16, account string) (string, http.Header, []byte) {
 	fail := func(status string, err error) (string, http.Header, []byte) {
 		g.log().Info("service backend failed", "status", status, "err", err.Error())
 		return status, http.Header{"Content-Type": {"text/plain"}}, []byte(status + "\n")
 	}
-	if g.ServiceURL == "" {
-		return fail("503 Service Unavailable", fmt.Errorf("no service URL configured"))
+	target := g.serviceURL(port)
+	if target == "" {
+		return fail("503 Service Unavailable", fmt.Errorf("no service URL configured for port %d", port))
 	}
-	base, err := url.Parse(g.ServiceURL)
+	base, err := url.Parse(target)
 	if err != nil {
 		return fail("503 Service Unavailable", err)
 	}
@@ -281,6 +285,12 @@ func (g *Gateway) upstream(raw []byte) (string, http.Header, []byte) {
 	}
 	for _, h := range []string{"Connection", "Proxy-Connection", "Keep-Alive", "Content-Length", "Transfer-Encoding"} {
 		out.Header.Del(h)
+	}
+	// The tunnel's authenticated console ("<digits>@xbox.com"), for backends
+	// that need to know it (xuacs enrolment). A client-sent value is replaced.
+	out.Header.Del(AccountHeader)
+	if account != "" {
+		out.Header.Set(AccountHeader, account)
 	}
 	out.Host = base.Host
 	cl := g.HTTP
@@ -319,3 +329,12 @@ func buildResponse(status string, hdr http.Header, body []byte) []byte {
 }
 
 func bufioReader(b []byte) *bufio.Reader { return bufio.NewReader(bytes.NewReader(b)) }
+
+// serviceURL is the backend for a tunnelled connection to the given service
+// port: the ServiceURLs entry, else the ServiceURL default.
+func (g *Gateway) serviceURL(port uint16) string {
+	if u, ok := g.ServiceURLs[port]; ok && u != "" {
+		return u
+	}
+	return g.ServiceURL
+}

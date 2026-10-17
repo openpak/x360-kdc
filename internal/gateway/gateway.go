@@ -78,7 +78,10 @@ type Gateway struct {
 	Handlers map[uint16]Handler
 	// ServiceURL is the backend the TCP service transport proxies HTTP requests to.
 	ServiceURL string
-	HTTP       *http.Client // default: 10 s timeout, no redirects
+	// ServiceURLs overrides ServiceURL per destination port of the tunnelled
+	// connection (the service id's port in the D7 record); other ports use ServiceURL.
+	ServiceURLs map[uint16]string
+	HTTP        *http.Client // default: 10 s timeout, no redirects
 
 	mu       sync.Mutex
 	sessions map[netip.AddrPort]*Session
