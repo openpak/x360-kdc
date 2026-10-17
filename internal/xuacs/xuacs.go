@@ -290,7 +290,11 @@ func (h *Handler) proxyParams() ([]byte, error) {
 	h.proxy[hex.EncodeToString(blob)] = now.Add(proxyTTL)
 	h.mu.Unlock()
 
-	mod := h.Key.N.FillBytes(make([]byte, 256))
+	// The applet feeds the wire modulus to XeCryptBnQwNeRsaPubCrypt after one
+	// per-qword swap, so the key must travel as a little-endian integer (least
+	// significant byte first). Big-endian made the client see an even modulus
+	// and fail before sending 0x608 (dialog "problem with the credentials", 0).
+	mod := reverseBytes(h.Key.N.FillBytes(make([]byte, 256)))
 	dg := sha1.Sum(mod)
 	out := binary.LittleEndian.AppendUint16(nil, uint16(len(blob)))
 	out = append(out, blob...)
@@ -356,7 +360,8 @@ func (h *Handler) login(ctx context.Context, body []byte) ([]byte, error) {
 	if r.bad || email == "" || len(wrapped) != 256 || len(pwBlob) != 48 || len(proxyEnc) == 0 || len(proxyEnc) > 2000 {
 		return nil, bad("0x608: malformed request (%d bytes)", len(body))
 	}
-	k, err := rsa.DecryptOAEP(sha1.New(), nil, h.Key, wrapped, nil)
+	// The wrapped key is the RSA block as the console holds it: little-endian.
+	k, err := rsa.DecryptOAEP(sha1.New(), nil, h.Key, reverseBytes(wrapped), nil)
 	if err != nil || len(k) != 24 {
 		return nil, bad("0x608: session key does not unwrap")
 	}
@@ -568,4 +573,13 @@ func consoleDigits(account string) string {
 		}
 	}
 	return d
+}
+
+// reverseBytes returns a reversed copy (big-endian <-> little-endian integer bytes).
+func reverseBytes(b []byte) []byte {
+	out := make([]byte, len(b))
+	for i, v := range b {
+		out[len(b)-1-i] = v
+	}
+	return out
 }

@@ -212,7 +212,7 @@ func (r *rig) params() proxyParamsReply {
 	if binary.LittleEndian.Uint16(rest[4:]) != 256 || len(rest) != 4+2+256+20 {
 		r.t.Fatalf("0x64A layout: %d bytes", len(rest))
 	}
-	return proxyParamsReply{blob, &rsa.PublicKey{N: new(big.Int).SetBytes(rest[6 : 6+256]), E: e}, rest[6+256:]}
+	return proxyParamsReply{blob, &rsa.PublicKey{N: new(big.Int).SetBytes(reverseBytes(rest[6 : 6+256])), E: e}, rest[6+256:]}
 }
 
 // loginBody is what the applet builds (notes section 5, "0x608 crypto").
@@ -220,10 +220,11 @@ func loginBody(t *testing.T, p proxyParamsReply, email, pw string, ts time.Time,
 	t.Helper()
 	k := make([]byte, 24)
 	rand.Read(k)
-	wrapped, err := rsa.EncryptOAEP(sha1.New(), rand.Reader, p.pub, k, nil)
+	wrappedBE, err := rsa.EncryptOAEP(sha1.New(), rand.Reader, p.pub, k, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	wrapped := reverseBytes(wrappedBE) // the console sends the RSA block little-endian
 	pt := append(bytes.Repeat([]byte{byte(20 - len(pw))}, 20), ts.UTC().Format(timestampLayout)...)
 	copy(pt, pw)
 	if mutate != nil {
@@ -427,7 +428,7 @@ func TestParamsAreFresh(t *testing.T) {
 	if bytes.Equal(a.blob, b.blob) || len(a.blob) != 32 || a.pub.E != 65537 || a.pub.N.Cmp(r.h.Key.N) != 0 {
 		t.Fatal("proxy params")
 	}
-	if sum := sha1.Sum(r.h.Key.N.FillBytes(make([]byte, 256))); !bytes.Equal(a.tail, sum[:]) {
+	if sum := sha1.Sum(reverseBytes(r.h.Key.N.FillBytes(make([]byte, 256)))); !bytes.Equal(a.tail, sum[:]) {
 		t.Fatal("tail")
 	}
 }
