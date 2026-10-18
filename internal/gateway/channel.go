@@ -72,12 +72,17 @@ func cbc(key, iv, in []byte, encrypt bool) ([]byte, error) {
 	return out, nil
 }
 
-// seal builds one data datagram.
+// seal builds one data datagram. SPI byte 0 carries the number of zero pad
+// bytes (pad<<5, as in the code-3 packets); XAM hands its dispatcher
+// plaintext-minus-pad and drops a message whose header length differs, so a
+// padded message with byte 0 left at 0 is authenticated but never acted on.
 func seal(d dirKeys, spi []byte, counter uint32, mtype uint16, body []byte) []byte {
 	pt := binary.BigEndian.AppendUint16(nil, mtype)
 	pt = binary.LittleEndian.AppendUint16(pt, uint16(len(body)+4))
 	pt = append(pt, body...)
-	pt = append(pt, make([]byte, -len(pt)&7)...)
+	pad := -len(pt) & 7
+	pt = append(pt, make([]byte, pad)...)
+	spi = append([]byte{byte(pad << 5)}, spi[1:4]...)
 	ct, err := cbc(d.k, ivFor(d.seed, counter), pt, true)
 	if err != nil {
 		panic(err) // key is always 24 bytes, input padded

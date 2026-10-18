@@ -56,7 +56,8 @@ func TestSealOpenRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(gotSPI, spi) || m.Type != 0x0b53 || m.Counter != uint32(n+1) || !bytes.Equal(m.Body, body) {
+		wantSPI := append([]byte{byte((-(4 + len(body)) & 7) << 5)}, spi[1:]...) // byte 0 = pad count << 5
+		if !bytes.Equal(gotSPI, wantSPI) || m.Type != 0x0b53 || m.Counter != uint32(n+1) || !bytes.Equal(m.Body, body) {
 			t.Fatalf("round trip %d: %x %+v", n, gotSPI, m)
 		}
 		pkt[len(pkt)-1] ^= 1
@@ -84,7 +85,7 @@ func TestHandleDataFlow(t *testing.T) {
 		t.Fatal("no ack")
 	}
 	spi, m, err := open(s2c, out[0])
-	if err != nil || m.Type != TypeAck || m.Counter != 1 || len(m.Body) != 0 || !bytes.Equal(spi, []byte{1, 2, 3, 4}) {
+	if err != nil || m.Type != TypeAck || m.Counter != 1 || len(m.Body) != 0 || !bytes.Equal(spi, []byte{0x80, 2, 3, 4}) { // 4-byte message: 4 pad bytes in SPI byte 0
 		t.Fatalf("ack: %x %+v %v", spi, m, err)
 	}
 	if out := send(2, 0x0b53, []byte{1, 2, 3}); out != nil || g.Sessions() != 1 {
@@ -133,7 +134,10 @@ func TestTicketMessageAck(t *testing.T) {
 		if len(out) != 1 {
 			t.Fatalf("flag %#x: no reply", flag)
 		}
-		_, m, err := open(s2c, out[0])
+		spi, m, err := open(s2c, out[0])
+		if spi[0] != 0x80 { // 12 plaintext bytes padded to 16: XAM wants the pad count (4<<5) in SPI byte 0
+			t.Fatalf("flag %#x: reply SPI byte 0 %#x", flag, spi[0])
+		}
 		if err != nil || m.Type != TypeTicketAck || !bytes.Equal(m.Body, []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
 			t.Fatalf("flag %#x: %+v %v", flag, m, err)
 		}

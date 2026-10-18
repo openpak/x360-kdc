@@ -233,14 +233,10 @@ func (g *Gateway) data(pkt []byte, src netip.AddrPort, now time.Time) ([][]byte,
 		g.log().Info("unverifiable data", "src", src, "account", s.Account, "len", len(pkt), "hex", hex.EncodeToString(pkt))
 		return nil, err
 	}
-	// The server SPI's first byte is always 0; the client puts per-packet flags
-	// there (0x80 on its first data packet, 0x20/0x40 on the 0x0553 ticket
-	// messages after a user logon), so only bytes 1..3 identify the session.
+	// SPI byte 0 is the pad length (pad<<5: the console's 0x80/0x40/0x20 are 4/2/1
+	// pad bytes), not part of the SPI; the server SPI's own byte 0 is always 0.
 	if string(spi[1:]) != string(s.ServerSPI[1:]) {
 		return nil, fmt.Errorf("data SPI %x is not this session's", spi)
-	}
-	if spi[0]&0x7f != 0 {
-		g.log().Info("data SPI flags", "src", src, "spi", hex.EncodeToString(spi))
 	}
 	s.expires = now.Add(SessionTTL)
 	s.lastSeen = now

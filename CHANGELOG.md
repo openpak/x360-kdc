@@ -109,3 +109,8 @@
   token, AP-REQ) with 0x0653 echoing the token (XAM FUN_81754C38 waits for exactly that; no key change). Without
   it XAM retried, closed the session (0x0053 reason 8) and the sign-in ended in 800704DB. The session takes the
   users from the ticket (presence). SPI: only bytes 1..3 identify the session, byte 0 carries per-packet flags.
+
+- 2026-10-18: v0.8.7 gateway: SPI byte 0 of a data packet is the pad length (pad<<5; the console's 0x80/0x40/0x20 are
+  4/2/1 pad bytes, not flags). XAM passes plaintext-minus-pad to its dispatcher and drops a message whose header
+  length differs, so every padded server message (0x0153, 0x0953, 0x0653) was authenticated but never acted on; the
+  console kept resending 0x0553, closed with reason 8 and the sign-in ended in 800704DB. seal() now sets byte 0.
