@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"openpak/x360-kdc/internal/accountcore"
-	"openpak/x360-kdc/internal/config"
-	"openpak/x360-kdc/internal/kdc"
+	"github.com/openpak/x360-common/accountcore"
+	"github.com/openpak/x360-common/config"
+	"github.com/openpak/x360-common/kdc"
 )
 
 func main() {

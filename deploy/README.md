@@ -1,5 +1,8 @@
 # x360-kdc deploy recipes
 
+The gateway, xuacs, liveinfo, xexds and notice units now live in their own repositories
+(`deploy/` there); this directory keeps the KDC's units. The overview below is historical.
+
 Copies of the live Xbox 360 service units, nftables redirects and helper scripts,
 kept here so the deployment can be rebuilt from the repo. Secrets and state are
 never in this directory.

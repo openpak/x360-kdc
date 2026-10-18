@@ -1,5 +1,11 @@
 # x360-kdc
 
+> **Repository layout (2026-10-18).** This repository was one monorepo for the KDC, gateway, account
+> service and LiveHive endpoint. Each is now its own repository and image, sharing the Go library
+> [`x360-common`](../x360-common): [`x360-kdc`](.) (this one), [`x360-gateway`](../x360-gateway),
+> [`x360-xuacs`](../x360-xuacs), [`x360-liveinfo`](../x360-liveinfo). Text below that describes the
+> gateway, xuacs or liveinfo internals now lives in their repositories; history was kept in each.
+
 OpenPak's Xbox 360 Kerberos endpoint: the three exchanges the 360 firmware (17559) runs over **UDP port 88**
 when it signs in to Xbox Live, served by one process on one socket:
 
@@ -14,8 +20,8 @@ Connection** and the dashboard shows "Your console can't connect to Xbox Live". 
 authenticates, installs an account and gets as far as the security-gateway handshake, which is the next thing
 to build (not here).
 
-Naming rule: every OpenPak Xbox 360 service is called `x360-<thing>`. Siblings: [`x360-xexds`](../x360-xexds),
-[`x360-notice`](../x360-notice).
+Naming rule: every OpenPak Xbox 360 service is called `x360-<thing>`. Siblings: [`x360-xexds`](x360-xexds),
+[`x360-notice`](x360-notice).
 
 Architecture: **a real Xbox 360 and the Wharf emulator hit the same endpoint.** Both resolve the three names;
 DNS redirects them to this service (OpenPak's resolver for consoles, `nic_dns_hosts` for Wharf). There is no

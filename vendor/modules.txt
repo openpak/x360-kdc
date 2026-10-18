@@ -1,0 +1,8 @@
+# github.com/openpak/x360-common v0.0.0 => ../x360-common
+## explicit; go 1.26.0
+github.com/openpak/x360-common/accountcore
+github.com/openpak/x360-common/config
+github.com/openpak/x360-common/der
+github.com/openpak/x360-common/kdc
+github.com/openpak/x360-common/rc4hmac
+# github.com/openpak/x360-common => ../x360-common

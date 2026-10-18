@@ -147,3 +147,9 @@
   account and canonical handle; docs/handles.md) with the sign-in line above (v0.8.7-v0.8.13) into one release.
   All x360 containers (kdc, gateway, xuacs, liveinfo) run this image from the registry; the local
   unified-handle image is retired.
+
+- 2026-10-18: v0.9.0 split into one repository and one image per service. This repository now builds only the
+  KDC (`ghcr.io/openpak/x360-kdc`); the gateway (x360-gateway), account service (x360-xuacs) and LiveHive
+  endpoint (x360-liveinfo) moved to their own repositories with their history, and the shared packages
+  (`kdc`, `accountcore`, `config`, `der`, `rc4hmac`, the new `wire`) to `x360-common`, consumed through a
+  `replace` and a committed `vendor/` like nx-common. The xexds and notice units moved to their repositories.
