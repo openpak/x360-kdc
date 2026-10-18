@@ -123,3 +123,7 @@
   logon is command 100 (24-byte LE header + u16 count + online XUID, 34 bytes); the XLive state machine
   (FUN_818d02b8) accepts command+201 with the same id, total length 28 and a 4-byte status 0. Without a reply it
   retried after 25 s and failed with 8015820A.
+
+- 2026-10-18: v0.8.10 xuacs: /xpnfront/xpresence.srf (Live service 1), the request the console sends after the
+  service-26 stream is up; it was a 404 from the default backend and ended the logon with 807B0194. The body is
+  logged in full and answered with an empty 200 while the format is decoded.

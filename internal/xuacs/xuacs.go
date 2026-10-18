@@ -190,6 +190,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.xpresence(w, r, body) {
+		return
+	}
+
 	var out []byte
 	var err error
 	switch strings.ToLower(r.URL.Path) {
