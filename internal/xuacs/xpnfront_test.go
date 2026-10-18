@@ -3,6 +3,7 @@ package xuacs
 import (
 	"bytes"
 	"encoding/hex"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -16,5 +17,13 @@ func TestPresenceAliveResponse(t *testing.T) {
 	}
 	if presenceAliveResponse(req[:100]) != nil || presenceAliveResponse(append(req, 1)) != nil {
 		t.Fatal("malformed request accepted")
+	}
+}
+
+func TestRevocationList(t *testing.T) {
+	rec := httptest.NewRecorder()
+	h := &Handler{}
+	if !h.revocation(rec, httptest.NewRequest("POST", PathRevocation, nil), make([]byte, 16)) || rec.Body.Len() != 276 {
+		t.Fatalf("revocation reply %d bytes", rec.Body.Len())
 	}
 }

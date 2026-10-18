@@ -190,7 +190,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.xpresence(w, r, body) {
+	if h.xpresence(w, r, body) || h.revocation(w, r, body) {
 		return
 	}
 

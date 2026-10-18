@@ -133,3 +133,7 @@
   result 0, the console's friend/block list versions echoed, zero counts. The console matches elements to users by
   seq; the empty 200 left it with none (0x80150007). Format from the schema-interpreter analysis
   (scratch/wharf/kdcstub/notes/xrl-schema-opcodes.md).
+
+- 2026-10-18: v0.8.12 xuacs: /xbos/GetRevocationList.ashx (Live service 21, request 0x918), an empty revocation list;
+  D7 lists service 21. With the xpresence reply accepted the console's user logon stalled with no error: its
+  post-logon revocation-list fetch (FUN_818cd740 -> FUN_81825530) had no service 21 to go to.
