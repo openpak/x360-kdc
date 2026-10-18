@@ -114,3 +114,7 @@
   4/2/1 pad bytes, not flags). XAM passes plaintext-minus-pad to its dispatcher and drops a message whose header
   length differs, so every padded server message (0x0153, 0x0953, 0x0653) was authenticated but never acted on; the
   console kept resending 0x0553, closed with reason 8 and the sign-in ended in 800704DB. seal() now sets byte 0.
+
+- 2026-10-18: v0.8.8 gateway logs the first bytes a client sends on a non-HTTP tunnelled TCP connection ("stream rx")
+  and keeps it open. After the 0x0653 the console's XLive worker connects a TCP stream to Live service 26
+  (FUN_818f07a8) and fails the whole logon with 800704DB when the service is not in D7 (0x80151100). D7 now lists 26.
