@@ -159,9 +159,14 @@ type ExtendedService struct {
 // d7Record builds the 184-byte record: status 0, SG IPv4 at 0x24 in network
 // order, the two-bit service status map at 0x5C (3 = omitted for everything
 // but D7Services), the extended entries at 0x7C, and the LE u64 cookie 1 at
-// 0xB0. Every other field is zero, as the oracle leaves them.
-func d7Record(sg netip.Addr) []byte {
+// 0xB0. The LE u32 at 0x98 is the title id the services' tickets are for (the
+// request's D6 title): the console's logon engine reads it as each service's
+// title (FUN_81949FC8 -> context +0x5B4) and its token service waits until the
+// service-12 title equals the running title. Every other field is zero, as the
+// oracle leaves them.
+func d7Record(sg netip.Addr, title uint32) []byte {
 	rec := make([]byte, D7Len)
+	binary.LittleEndian.PutUint32(rec[0x98:], title)
 	ip := sg.As4()
 	copy(rec[0x24:0x28], ip[:])
 	for i := 0x5c; i < 0x7c; i++ {

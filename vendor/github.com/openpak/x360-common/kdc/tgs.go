@@ -196,7 +196,7 @@ func (h *Handler) handleTGS(data []byte) ([]byte, *Result, error) {
 	// Reply: D7 under D(session, nonce) usage 1202, a fresh sg/S0 ticket and
 	// EncTGSRepPart under the TGT session key, usage 8.
 	sessionOut := rc4hmac.NewKey()
-	d7 := encPadata(PaD7, encEncryptedData(rc4hmac.Encrypt(derived, rc4hmac.UsageD7, d7Record(h.SGAddress))))
+	d7 := encPadata(PaD7, encEncryptedData(rc4hmac.Encrypt(derived, rc4hmac.UsageD7, d7Record(h.SGAddress, binary.LittleEndian.Uint32(d6[0x0e:])))))
 	var ad []byte
 	if len(id.Users) > 0 || id.Machine != id.Principal {
 		ad = encAuthData(id.Machine, id.Users)
