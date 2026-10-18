@@ -15,9 +15,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"openpak/x360-kdc/internal/accountcore"
 	"strings"
 	"time"
 )
@@ -82,9 +84,26 @@ func (h *Handler) userKey(r *http.Request, console, gamertag string) (any, int) 
 	if consoleDigits(console+"@x") == "" {
 		return errBody{"console required"}, http.StatusBadRequest
 	}
+	// A released handle must never let a deleted account's stored key answer
+	// for a new owner. Verify account liveness and canonical name before exposing
+	// any console profile to the KDC.
+	var profiles []ConsoleProfile
+	for _, p := range h.Store.ConsoleProfiles(console) {
+		handle, err := h.Core.Handle(r.Context(), p.Account)
+		if errors.Is(err, accountcore.ErrInactive) {
+			continue
+		}
+		if err != nil {
+			return errBody{"account service unavailable"}, http.StatusServiceUnavailable
+		}
+		if handle != "" && p.Gamertag != handle {
+			continue
+		}
+		profiles = append(profiles, p)
+	}
 	if gamertag == "" {
 		var list []profileOut
-		for _, p := range h.Store.ConsoleProfiles(console) {
+		for _, p := range profiles {
 			list = append(list, profileOut{p.Account, fmt.Sprintf("%016x", p.Online), hex.EncodeToString(p.Key)})
 		}
 		h.log().Info("internal user-key: all profiles on console", "console", console, "profiles", len(list))
@@ -95,7 +114,6 @@ func (h *Handler) userKey(r *http.Request, console, gamertag string) (any, int) 
 			Profiles []profileOut `json:"profiles"`
 		}{list}, http.StatusOK
 	}
-	profiles := h.Store.ConsoleProfiles(console)
 	var hit *ConsoleProfile
 	for i := range profiles {
 		p := &profiles[i]

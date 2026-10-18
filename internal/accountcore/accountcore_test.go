@@ -92,6 +92,9 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status(CodeFailedPrecond, "not active")
 			return
 		}
+	case identityService + "GetAccount":
+		out.str(1, in.str(1))
+		out = append(out, 0x10, 1)
 	case identityService + "VerifyPassword":
 		if in.str(1) != "x360" || in.str(2) != "console_login" {
 			status(3, "namespace/purpose")

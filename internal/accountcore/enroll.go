@@ -105,6 +105,16 @@ func (s *SignInService) Link(ctx context.Context, acct string, r SignInRequest) 
 	if acct == "" || r.ConsoleDigits == "" || r.XUID == 0 {
 		return nil, errors.New("link: account, console and xuid are required")
 	}
+	handle, err := s.Core.Handle(ctx, acct)
+	if err != nil {
+		return nil, err
+	}
+	if handle != "" {
+		if r.Gamertag != "" && r.Gamertag != handle {
+			return nil, errors.New("gamertag must equal account handle")
+		}
+		r.Gamertag = handle
+	}
 	cl, err := s.claim(ctx, acct, ConsoleNamespace, r.ConsoleDigits, ErrConsoleOwned)
 	if err != nil {
 		return nil, fmt.Errorf("console link: %w", err)
@@ -159,5 +169,18 @@ func (s *SignInService) LinkProfile(ctx context.Context, acct string, xuid uint6
 	if acct == "" || xuid == 0 {
 		return "", errors.New("link profile: account and xuid are required")
 	}
-	return s.claim(ctx, acct, UserNamespace, fmt.Sprintf("%016x", xuid), ErrUserOwned)
+	handle, err := s.Core.Handle(ctx, acct)
+	if err != nil {
+		return "", err
+	}
+	link, err := s.claim(ctx, acct, UserNamespace, fmt.Sprintf("%016x", xuid), ErrUserOwned)
+	if err != nil {
+		return "", err
+	}
+	if handle != "" {
+		if err = s.Core.SetLinkPublicCode(ctx, link, handle, strings.ToLower(handle)); err != nil {
+			return "", err
+		}
+	}
+	return link, nil
 }

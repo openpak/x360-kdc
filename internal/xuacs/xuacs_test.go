@@ -80,6 +80,8 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return pbStr(o, 5, f.codes[l.LinkID])
 	}
 	switch strings.TrimPrefix(r.URL.Path, "/openpak.account.v1.") {
+	case "Identity/GetAccount":
+		out = pbVar(pbStr(nil, 1, in[1]), 2, 1)
 	case "Identity/VerifyPassword":
 		switch {
 		case in[3] == "ann@example.org" && in[4] == "secret12":
