@@ -153,3 +153,6 @@
   endpoint (x360-liveinfo) moved to their own repositories with their history, and the shared packages
   (`kdc`, `accountcore`, `config`, `der`, `rc4hmac`, the new `wire`) to `x360-common`, consumed through a
   `replace` and a committed `vendor/` like nx-common. The xexds and notice units moved to their repositories.
+
+- 2026-10-18: v0.9.1 TGS replies carry the request's title id in the D7 record (x360-common kdc), so the console's
+  token service stops waiting on a service title of 0.
