@@ -70,6 +70,7 @@ const DefaultMaxSkew = 5 * time.Minute
 
 // Core is what xuacs needs from the OpenPak account core.
 type Core interface {
+	Handle(context.Context, string) (string, error)
 	// VerifyPassword returns the account id and status (accountcore.StatusActive).
 	VerifyPassword(ctx context.Context, email, password string) (account string, status int, err error)
 	// ActiveXboxLink returns the account's active x360 profile link, or nil.
@@ -85,6 +86,10 @@ type Core interface {
 // CoreClient adapts the account core client to Core.
 type CoreClient struct {
 	Client *accountcore.Client
+}
+
+func (c CoreClient) Handle(ctx context.Context, account string) (string, error) {
+	return c.Client.Handle(ctx, account)
 }
 
 func (c CoreClient) VerifyPassword(ctx context.Context, email, pw string) (string, int, error) {
@@ -190,7 +195,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.xpresence(w, r, body) || h.revocation(w, r, body) {
+	if h.xpresence(w, r, body) || h.revocation(w, r, body) || h.xstats(w, r, body) {
 		return
 	}
 
@@ -489,7 +494,16 @@ func (h *Handler) identityOf(ctx context.Context, acct, email string) (_ string,
 	if xuid, err = h.Store.OnlineXUID(acct, pref); err != nil {
 		return "", 0, "", err
 	}
-	if tag == "" {
+	handle, e := h.Core.Handle(ctx, acct)
+	if e != nil {
+		return "", 0, "", deny(http.StatusServiceUnavailable, "account service unavailable")
+	}
+	if handle != "" {
+		if tag != "" && tag != handle {
+			return "", 0, "", deny(http.StatusServiceUnavailable, "account identity migration pending")
+		}
+		tag = handle
+	} else if tag == "" {
 		tag = gamertagFrom(email, xuid)
 	}
 	return acct, xuid, tag, nil

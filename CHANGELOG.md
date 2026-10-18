@@ -137,3 +137,7 @@
 - 2026-10-18: v0.8.12 xuacs: /xbos/GetRevocationList.ashx (Live service 21, request 0x918), an empty revocation list;
   D7 lists service 21. With the xpresence reply accepted the console's user logon stalled with no error: its
   post-logon revocation-list fetch (FUN_818cd740 -> FUN_81825530) had no service 21 to go to.
+
+- 2026-10-18: v0.8.13 xuacs: /xstats/*.ashx (Live services 34 and 35) answer with empty-success replies; D7 lists 34
+  and 35. With the title-sync event fixed in Wharf the console's post-logon sync looked up service 35 and failed
+  locally with 800704DB (0x80151100: not in D7).

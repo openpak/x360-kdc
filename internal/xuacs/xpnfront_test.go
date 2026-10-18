@@ -27,3 +27,14 @@ func TestRevocationList(t *testing.T) {
 		t.Fatalf("revocation reply %d bytes", rec.Body.Len())
 	}
 }
+
+func TestXStatsEmpty(t *testing.T) {
+	rec := httptest.NewRecorder()
+	h := &Handler{}
+	if !h.xstats(rec, httptest.NewRequest("POST", "/xstats/synctitles.ashx", nil), nil) || rec.Body.Len() != 12 {
+		t.Fatalf("xstats reply %d bytes", rec.Body.Len())
+	}
+	if h.xstats(rec, httptest.NewRequest("POST", "/xstats/other.ashx", nil), nil) {
+		t.Fatal("unknown xstats path served")
+	}
+}
