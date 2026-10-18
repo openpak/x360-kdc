@@ -141,3 +141,9 @@
 - 2026-10-18: v0.8.13 xuacs: /xstats/*.ashx (Live services 34 and 35) answer with empty-success replies; D7 lists 34
   and 35. With the title-sync event fixed in Wharf the console's post-logon sync looked up service 35 and failed
   locally with 800704DB (0x80151100: not in D7).
+
+- 2026-10-18: v0.8.14 merges the permanent core-owned handles work (605c55e: GetAccount field 9 is the permanent
+  handle; enrollment and LinkProfile use it; the KDC key lookup verifies the stored profile against the core
+  account and canonical handle; docs/handles.md) with the sign-in line above (v0.8.7-v0.8.13) into one release.
+  All x360 containers (kdc, gateway, xuacs, liveinfo) run this image from the registry; the local
+  unified-handle image is retired.
