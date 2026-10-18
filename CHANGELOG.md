@@ -127,3 +127,9 @@
 - 2026-10-18: v0.8.10 xuacs: /xpnfront/xpresence.srf (Live service 1), the request the console sends after the
   service-26 stream is up; it was a 404 from the default backend and ended the logon with 807B0194. The body is
   logged in full and answered with an empty 200 while the format is decoded.
+
+- 2026-10-18: v0.8.11 xuacs: /xpnfront/xpresence.srf answers request 0x2 ("presence alive", one entry per signed-in
+  user, 32-byte header + msg_len) with one element per entry: the header with msg_len 16 and the same seq, then
+  result 0, the console's friend/block list versions echoed, zero counts. The console matches elements to users by
+  seq; the empty 200 left it with none (0x80150007). Format from the schema-interpreter analysis
+  (scratch/wharf/kdcstub/notes/xrl-schema-opcodes.md).
