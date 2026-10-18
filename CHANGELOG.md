@@ -118,3 +118,8 @@
 - 2026-10-18: v0.8.8 gateway logs the first bytes a client sends on a non-HTTP tunnelled TCP connection ("stream rx")
   and keeps it open. After the 0x0653 the console's XLive worker connects a TCP stream to Live service 26
   (FUN_818f07a8) and fails the whole logon with 800704DB when the service is not in D7 (0x80151100). D7 now lists 26.
+
+- 2026-10-18: v0.8.9 gateway answers the service-26 stream (stream.go). The console's first message after the user
+  logon is command 100 (24-byte LE header + u16 count + online XUID, 34 bytes); the XLive state machine
+  (FUN_818d02b8) accepts command+201 with the same id, total length 28 and a 4-byte status 0. Without a reply it
+  retried after 25 s and failed with 8015820A.

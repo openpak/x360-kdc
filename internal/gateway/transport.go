@@ -147,9 +147,6 @@ func (g *Gateway) tcpSegment(s *Session, sg tcpSeg, now time.Time) [][]byte {
 			}
 		}
 		if len(p) > 0 && seq == c.rcvNxt {
-			if c.req == nil && (p[0] < 'A' || p[0] > 'Z') { // not an HTTP method: a raw stream service (26), kept open and logged
-				log.Info("stream rx", "ports", key, "len", len(p), "hex", hex.EncodeToString(p[:min(len(p), 256)]))
-			}
 			c.req = append(c.req, p...)
 			c.rcvNxt += uint32(len(p))
 			for q, ok := c.ooo[c.rcvNxt]; ok; q, ok = c.ooo[c.rcvNxt] {
@@ -177,7 +174,9 @@ func (g *Gateway) tcpSegment(s *Session, sg tcpSeg, now time.Time) [][]byte {
 		delete(s.conns, key)
 		return out
 	}
-	if !c.responded && requestComplete(c.req) {
+	if key.server == streamPort {
+		g.streamServe(c, log)
+	} else if !c.responded && requestComplete(c.req) {
 		c.responded = true
 		c.resp = g.serve(c.req, key.server, s.Account, usersHeader(s.Users), log)
 		c.finQueued = true
