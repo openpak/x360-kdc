@@ -25,3 +25,22 @@ func (c *Client) Handle(ctx context.Context, account string) (string, error) {
 	}
 	return f.str(9), nil
 }
+
+// Birthday reads the core's ISO calendar date for an active account. Empty means
+// the account has not supplied one; adapters must not infer adult status.
+func (c *Client) Birthday(ctx context.Context, account string) (string, error) {
+	var req pb
+	req.str(1, account)
+	response, err := c.call(ctx, identityService+"GetAccount", req)
+	if IsNotFound(err) {
+		return "", ErrInactive
+	}
+	if err != nil {
+		return "", err
+	}
+	f := parseFields(response)
+	if f.str(1) != account || f.num(2) != StatusActive {
+		return "", ErrInactive
+	}
+	return f.str(6), nil
+}
