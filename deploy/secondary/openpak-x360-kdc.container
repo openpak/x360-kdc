@@ -28,7 +28,7 @@ Environment=X360_KDC_CONSOLE_CA=/run/secrets/console-ca-public.pem
 Environment=X360_KDC_ACCOUNTS=/var/lib/x360-kdc/accounts.json
 Environment=X360_KDC_TICKET_KEY=/var/lib/x360-kdc/ticket-key.bin
 Environment=X360_KDC_SG_ADDRESS=143.47.231.210
-Environment=X360_KDC_D7_SERVICES=1,20,25,5,11,12
+Environment=X360_KDC_D7_SERVICES=1,20,25,5,11,12,26,21,34,35,33,2
 # User sign-in (user AS exchange): profile keys and WLID tickets from x360-xuacs on the primary over
 # ZeroTier. X360_KDC_XUACS_KEY comes from core.env.
 Environment=X360_KDC_XUACS_URL=http://10.212.63.196:20005
