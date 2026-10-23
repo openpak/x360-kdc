@@ -48,8 +48,8 @@ points the three names at it yet.
 ## Protocol
 
 Everything below is derived from the firmware's own code by OpenPak (clean room; see
-[`docs/clean-room-policy.md`](../docs/clean-room-policy.md)). Source of truth with offsets and firmware
-addresses: [`docs/xbox360/wharf-base-plan.md`](../docs/xbox360/wharf-base-plan.md), the three dated
+[clean-room policy](https://docs.openpak.org/contributors/clean-room/)). Source of truth with offsets and firmware
+addresses: internal research notes, the three dated
 sections "MACS console authentication and AS-REP", "XEAS account authentication accepted" and "XETGS sg/S0
 reply". This README only summarises what the server enforces.
 

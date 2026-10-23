@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # udpcap.py <port> <logfile> [echo]: log every UDP datagram received on 127.0.0.1:<port> (hex + ascii);
 # with "echo" it sends each datagram back unchanged (stand-in for the XEXDS MTU/echo test the dashboard runs).
-# with "xexds" it answers in the layout the dashboard's own validator accepts (docs/xbox360/wharf-base-plan.md, 2026-10-16 XEXDS section):
+# with "xexds" it answers in the layout the dashboard's own validator accepts (internal research notes, 2026-10-16 XEXDS section):
 #   request: u16le type, u16le sub, u16le total_len, u16le body_len, 41/42-byte text ("...MTU Test" total 0x538, "...ICMP Test" total 200), type 3 = 32 bytes
 #   reply  : 36-byte header + the request text; length must equal the request total length; for type 3 any datagram completes the step.
 import socket, sys, time, struct, hmac, hashlib, os
