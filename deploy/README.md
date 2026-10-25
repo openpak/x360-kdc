@@ -9,12 +9,12 @@ never in this directory.
 
 Layout:
 
-- `secondary/` - host 145.241.228.207
-- `primary/` - host 145.241.199.19
+- `secondary/` - host HOST_IP
+- `primary/` - host PROD_HOST
 
 ## What runs where
 
-### Secondary (145.241.228.207)
+### Secondary (HOST_IP)
 
 - **x360-kdc**: Kerberos-style KDC for `xemacs/xeas/xetgs.xboxlive.com`. The 360
   dials UDP 88. Rootless podman cannot bind 88 in the host namespace, so the
@@ -35,7 +35,7 @@ Each redirect lives in its own nft table (`x360kdc`, `x360gw`, `x360`), so each
 one can be deleted without touching the others. Each `*-fw.sh` also inserts an
 iptables INPUT accept for its port ahead of the first REJECT.
 
-### Primary (145.241.199.19)
+### Primary (PROD_HOST)
 
 - **x360-liveinfo**: LiveHive endpoint (`/liveinfo/GetLiveConfig.ashx`, Live
   service 25) on port 10025. Traefik routes `PathPrefix(/liveinfo)` on the
@@ -115,9 +115,9 @@ own public IPv4 (then `X360_KDC_SG_ADDRESS` points at it and the gateway listens
 
 ## 2026-10-17: the 360 gateway has its own public address
 
-143.47.231.210 (private 10.0.0.83, on ens3) is attached to the secondary. Table `ip x360gw`
+HOST_IP (private 10.0.0.83, on ens3) is attached to the secondary. Table `ip x360gw`
 (`secondary/x360-gateway.nft`, applied by `openpak-x360-gateway-fw.service`) redirects UDP 3074 for that
-destination address to :13075, where x360-gateway listens. The KDC advertises 143.47.231.210 in the D7
+destination address to :13075, where x360-gateway listens. The KDC advertises HOST_IP in the D7
 record (`X360_KDC_SG_ADDRESS`). Matching is by destination address only, so xb-gateway on 10.0.0.22 and
 the xexds `ip x360` rule are untouched. The old `x360sg` payload-matching table is gone for good. The
 UDP-over-TCP tunnel (`deploy/x360-kdc/udp-over-tcp.py` on the box) stays as a fallback only.

@@ -132,7 +132,7 @@
   user, 32-byte header + msg_len) with one element per entry: the header with msg_len 16 and the same seq, then
   result 0, the console's friend/block list versions echoed, zero counts. The console matches elements to users by
   seq; the empty 200 left it with none (0x80150007). Format from the schema-interpreter analysis
-  (scratch/wharf/kdcstub/notes/xrl-schema-opcodes.md).
+  (private notes).
 
 - 2026-10-18: v0.8.12 xuacs: /xbos/GetRevocationList.ashx (Live service 21, request 0x918), an empty revocation list;
   D7 lists service 21. With the xpresence reply accepted the console's user logon stalled with no error: its
