@@ -156,3 +156,6 @@
 
 - 2026-10-18: v0.9.1 TGS replies carry the request's title id in the D7 record (x360-common kdc), so the console's
   token service stops waiting on a service title of 0.
+
+- 2026-11-01: v0.9.2 the secondary's D7 list advertises Live services 6 (matchmaking), 7 (leaderboards) and 16
+  (arbitration); docs moved to docs/, images publish with the org token. No KDC code changes.
