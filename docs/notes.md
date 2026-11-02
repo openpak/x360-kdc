@@ -1,6 +1,6 @@
 # Notes: x360-kdc
 
-> **Repository layout (2026-10-18).** This repository was one monorepo for the KDC, gateway, account
+> **Repository layout.** This repository was one monorepo for the KDC, gateway, account
 > service and LiveHive endpoint. Each is now its own repository and image, sharing the Go library
 > [`x360-common`](../../x360-common): [`x360-kdc`](../) (this one), [`x360-gateway`](../../x360-gateway),
 > [`x360-xuacs`](../../x360-xuacs), [`x360-liveinfo`](../../x360-liveinfo). Text below that describes the
@@ -24,19 +24,6 @@ Architecture: **a real Xbox 360 and the Wharf emulator hit the same endpoint.** 
 DNS redirects them to this service (OpenPak's resolver for consoles, `nic_dns_hosts` for Wharf). There is no
 emulator-only path, port or packet. The one emulator-specific value is the security-gateway address the TGS
 reply advertises (`X360_KDC_SG_ADDRESS`, see below).
-
-## Status snapshots
-
-Status, 2026-10-16: a port of OpenPak's Python oracle (`private notes`), which
-the firmware accepted live on its first attempt for all three stages (MACS 1167 -> 545 bytes, XEAS 353 -> 550,
-TGS 841 -> 772; `private notes`). This Go server replays those captures in its tests:
-every request verifies with the real keys, every reply has the same DER shape as the accepted one, and the
-deterministic records (account record, service record) are byte-identical.
-
-Release and deployment, 2026-10-16: tag `v0.1.0`, image `ghcr.io/openpak/x360-kdc` (tags `0.1.0`, `0.1`,
-`latest`) built by the release workflow. Deployed on the secondary host `draughts-server` (HOST_IP)
-as a rootless Podman 5.7 quadlet (see "Deployment"). No console has used it yet, and no OpenPak DNS entry
-points the three names at it yet.
 
 ## Enrolment
 

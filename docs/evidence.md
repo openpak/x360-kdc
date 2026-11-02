@@ -2,11 +2,11 @@
 
 ## Live verification
 
-Live verification, 2026-10-16: Wharf (the real 17559 dashboard) completed **MACS** (1167-byte request, reply
+Wharf (the real 17559 dashboard) completed **MACS** (1167-byte request, reply
 returned), **XEAS** (346 -> reply) and **XETGS `sg/S0`** (841 -> reply) against this server on the first attempt
 of each. The security-gateway stand-in then accepted the `sg/S0` ticket this server issued (same ticket key).
-D7 now advertises services **1, 20 and 25** (25 = LiveHive `/liveinfo`, XRL request 0x1300, needed right after
-the logon; commit c99de28). Not yet tried by a real console.
+D7 advertises services **1, 20 and 25** (25 = LiveHive `/liveinfo`, XRL request 0x1300, needed right after
+the logon; commit c99de28).
 
 ## Tests
 
