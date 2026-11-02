@@ -12,6 +12,11 @@
   workflow. Deployed on the secondary host `draughts-server` (rootless Podman, UDP 88 redirected to 10088 by
   nftables); listening, not yet used by a console.
 
+## v0.9.3 - 2026-11-02
+
+- Deploy: D7 list adds Live service 9 (content; `...,6,7,16,9`). Static RE found no XAM path that rejects it;
+  the earlier 80004005 run had no profile signed in. Sign-in with 9 unverified.
+
 ## Unreleased
 
 - 2026-10-17: x360-xuacs, the account service for Live service 5 (`internal/xuacs`, `cmd/x360-xuacs`, fourth
