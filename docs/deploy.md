@@ -151,3 +151,16 @@ shared env file (the core's internal key; never print or commit it).
 
 Releases: tag `v*.*.*` publishes `ghcr.io/openpak/x360-kdc` and deployed hosts auto-update
 from it, so nothing is tagged until a deploy is wanted.
+
+## Tests
+
+```sh
+go test ./...                                   # DER, RC4-HMAC, store, and a full synthetic MACS -> XEAS -> TGS exchange
+go vet ./... && gofmt -l .
+```
+
+The synthetic test generates its own CA, XMACS and console keys, builds the three requests the way the firmware does, decodes the replies the way XAM's parser does (nonce echo, key sizes, 108 -> 84 and 208 -> 184 records, ticket <= 1024 bytes), then checks every rejection: tampered console block regions, another CA, wrong cname, tampered CE/timestamp/authenticator/D6, modified request body, foreign or expired ticket, stale authenticator, user ids present, missing provenance. Never run tests with TMPDIR in /tmp.
+
+## Gotchas
+
+`X-X360-Account` is trusted as sent by the gateway. Traefik also exposes `/xuacs` on port 80, so a direct caller could set it; the password is still required, but restrict the route if that matters.

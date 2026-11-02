@@ -136,3 +136,17 @@ headers, and the response status are logged at info level. Code 0 control messag
 
 The response length is padded to a multiple of 4 with an `X-Pad` header so no segment needs an ICV filler (see
 `tcp.go`). No timer-driven retransmit: a lost segment is resent when the client repeats its ACK or request.
+
+## Context
+
+Microsoft's hosts no longer answer, so a real 360 fails at Network Settings -> Test Xbox Live Connection. With this service the firmware authenticates, installs an account and reaches the security-gateway handshake.
+
+A real Xbox 360 and the Wharf emulator hit the same endpoint: DNS redirects the three names to this service (OpenPak's resolver for consoles, `nic_dns_hosts` for Wharf). There is no emulator-only path, port or packet. The one emulator-specific value is the security-gateway address the TGS reply advertises (`X360_KDC_SG_ADDRESS`).
+
+## Enrolment
+
+Enrolment happens on user sign-in (`internal/accountcore.SignInService`). `SignIn` verifies the OpenPak email and password with `Identity.VerifyPassword` (adapter namespace `x360`, purpose `console_login`; two-factor accounts fail closed, banned or deleted accounts are refused), then `ReserveLink` + `ActivateLink` for `x360-console`/console digits, then the same for `x360`/XUID as 16 hex digits, and `SetLinkPublicCode` = gamertag. A console or profile held by another account is refused (`ErrConsoleOwned`, `ErrUserOwned`) and nothing changes; repeating it for the same account is a no-op. The TGS user path (non-zero D6 user ids) logs `user_xuids` and refuses.
+
+## Wharf results
+
+The real 17559 dashboard in Wharf completed MACS (1167-byte request), XEAS (346 bytes) and XETGS `sg/S0` (841 bytes), each on the first attempt. The security-gateway stand-in accepted the `sg/S0` ticket issued here (same ticket key). D7 advertises services 1, 20 and 25 (25 = LiveHive `/liveinfo`, XRL request 0x1300, needed right after the logon).
