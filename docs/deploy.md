@@ -122,7 +122,8 @@ force re-provisioning.
 | `X360_KDC_ADDR` | no | `:88` | UDP listen address |
 | `X360_KDC_XMACS_KEY` | yes | | RSA-2048 private key PEM (PKCS#8 or PKCS#1) for the MACS OAEP block |
 | `X360_KDC_CONSOLE_CA` | yes | | RSA-2048 public key PEM, the console certificate trust anchor |
-| `X360_KDC_ACCOUNTS` | no | `x360-accounts.json` | machine-account store, written 0600 via rename |
+| `X360_KDC_ACCOUNTS` | no | `x360-accounts.json` | legacy account file: imported once into Postgres when the database is empty, then unused |
+| `X360_KDC_DATABASE_URL` | yes | | Postgres URL (role `x360kdc`, database `x360`, schema `x360_kdc`); the KDC refuses to start without it |
 | `X360_KDC_TICKET_KEY` | no | `x360-ticket-key.bin` | 16-byte ticket key, created 0600 when missing |
 | `X360_KDC_SG_ADDRESS` | no | `10.0.2.2` | IPv4 advertised as the security gateway in the D7 record; the default fits only a local Wharf test |
 | `X360_KDC_ACCOUNT_CORE_URL` | production: yes | | account core gRPC listener (`http://host:7000`, cleartext HTTP/2, or `https://`). Set together with the token or not at all |
@@ -164,3 +165,15 @@ The synthetic test generates its own CA, XMACS and console keys, builds the thre
 ## Gotchas
 
 `X-X360-Account` is trusted as sent by the gateway. Traefik also exposes `/xuacs` on port 80, so a direct caller could set it; the password is still required, but restrict the route if that matters.
+
+## Accounts in Postgres
+
+Since v0.10.0 (gateway) / v0.10.0 (KDC) the machine accounts live in Postgres, not in `accounts.json`: database `x360`,
+schema `x360_kdc` (document `accounts`, created for the role ahead of time), shared by `x360-kdc` (the only writer) and
+`x360-gateway` (reads, reloaded on every initiation; if the database is down it keeps the last loaded accounts).
+`X360_KDC_DATABASE_URL` / `X360_GATEWAY_DATABASE_URL` are required: the service refuses to start without them. The
+secondary reaches Postgres over ZeroTier: role `x360kdc` (connection limit 3, database `x360` only) at
+`10.212.63.196:19433` on the primary, a forwarder (`openpak-x360-pg-forward.service`) that accepts only the secondary
+(`10.212.63.175`), backed by an INPUT rule and `pg_hba.conf` (`host x360 x360kdc 10.89.2.217/32 scram-sha-256`, then
+`host all x360kdc all reject`). The URL lives in `~/openpak/deploy/x360-kdc/db.env` (0600, never committed).
+If the database holds no accounts yet, an existing `accounts.json` is imported once and left in place as a backup.

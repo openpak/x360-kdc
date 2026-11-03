@@ -37,11 +37,15 @@ func main() {
 		log.Error("console CA", "err", err)
 		os.Exit(2)
 	}
-	store, err := kdc.OpenStore(cfg.Accounts)
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	store, err := kdc.OpenPGStore(dbCtx, os.Getenv("X360_KDC_DATABASE_URL"), kdc.Schema, cfg.Accounts)
+	dbCancel()
 	if err != nil {
-		log.Error("accounts", "err", err)
+		log.Error("accounts: X360_KDC_DATABASE_URL is required and must be reachable", "err", err)
 		os.Exit(2)
 	}
+	defer store.Close()
+	log.Info("accounts in Postgres", "schema", kdc.Schema, "accounts", store.Len())
 	ticketKey, err := kdc.LoadTicketKey(cfg.TicketKey)
 	if err != nil {
 		log.Error("ticket key", "err", err)

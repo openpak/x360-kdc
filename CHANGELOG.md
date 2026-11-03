@@ -1,5 +1,9 @@
 # Changelog: x360-kdc
 
+## v0.10.0 (2026-11-03)
+
+- Accounts move to Postgres (x360-common v0.6.0 `kdc.OpenPGStore`, schema `x360_kdc` in database `x360`, `X360_KDC_DATABASE_URL`, required). An existing `accounts.json` is imported once on first start and left in place as a backup. The ticket key stays a file.
+
 ## v0.9.5 (2026-11-03)
 
 - Every KDC datagram line (answered, rejected, recorded) now carries `ms`, the handling time (x360-common v0.5.1). It already logged one line per datagram with kind and result.

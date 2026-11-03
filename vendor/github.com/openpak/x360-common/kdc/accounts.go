@@ -1,6 +1,7 @@
 package kdc
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openpak/x360-common/pgstate"
 	"github.com/openpak/x360-common/rc4hmac"
 )
 
@@ -57,12 +59,94 @@ func (a *Account) Cert() ([]byte, error) {
 	return c, nil
 }
 
-// Store is the JSON account file: a map from "digits@xbox.com" to Account.
-// Writes go to <path>.pending with mode 0600, then rename.
+// Schema is the Postgres schema the KDC and the gateway share inside the x360
+// database; the accounts live in its document "accounts".
+const Schema = "x360_kdc"
+
+const accountsKey = "accounts"
+
+// Store is the account map "digits@xbox.com" to Account. It is kept in
+// Postgres (OpenPGStore) or, for tests and the oracle, in a JSON file
+// (OpenStore) whose writes go to <path>.pending with mode 0600, then rename.
 type Store struct {
 	path string
+	pg   *pgstate.Store
 	mu   sync.Mutex
 	m    map[string]*Account
+}
+
+// OpenPGStore opens the Postgres store in schema and loads the accounts.
+// When the database holds none yet and legacyFile exists, the file is imported
+// once and left in place as a backup. An empty dsn is an error.
+func OpenPGStore(ctx context.Context, dsn, schema, legacyFile string) (*Store, error) {
+	pg, err := pgstate.Open(ctx, dsn, schema)
+	if err != nil {
+		return nil, err
+	}
+	s := &Store{pg: pg, m: map[string]*Account{}}
+	found, err := pg.Load(ctx, accountsKey, &s.m)
+	if err != nil {
+		pg.Close()
+		return nil, err
+	}
+	if !found && legacyFile != "" {
+		b, err := os.ReadFile(legacyFile)
+		switch {
+		case err == nil:
+			m := map[string]*Account{}
+			if err := json.Unmarshal(b, &m); err != nil {
+				pg.Close()
+				return nil, fmt.Errorf("%s: %w", legacyFile, err)
+			}
+			s.m = m
+			if err := s.save(); err != nil {
+				pg.Close()
+				return nil, err
+			}
+		case !errors.Is(err, os.ErrNotExist):
+			pg.Close()
+			return nil, err
+		}
+	}
+	if s.m == nil {
+		s.m = map[string]*Account{}
+	}
+	return s, nil
+}
+
+// Close releases the database pool, if any.
+func (s *Store) Close() {
+	if s.pg != nil {
+		s.pg.Close()
+	}
+}
+
+// Reload re-reads the accounts from Postgres or the file, so a reader sees what
+// the KDC issued meanwhile. On error the previous map stays in place.
+func (s *Store) Reload(ctx context.Context) error {
+	m := map[string]*Account{}
+	if s.pg != nil {
+		if _, err := s.pg.Load(ctx, accountsKey, &m); err != nil {
+			return err
+		}
+	} else {
+		b, err := os.ReadFile(s.path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err == nil {
+			if err := json.Unmarshal(b, &m); err != nil {
+				return fmt.Errorf("%s: %w", s.path, err)
+			}
+		}
+	}
+	if m == nil {
+		m = map[string]*Account{}
+	}
+	s.mu.Lock()
+	s.m = m
+	s.mu.Unlock()
+	return nil
 }
 
 // OpenStore loads path, or starts empty when it does not exist yet.
@@ -161,6 +245,11 @@ func appendPadded(b []byte, s string, n int) []byte {
 }
 
 func (s *Store) save() error {
+	if s.pg != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return s.pg.Save(ctx, accountsKey, s.m)
+	}
 	b, err := json.MarshalIndent(s.m, "", "  ")
 	if err != nil {
 		return err

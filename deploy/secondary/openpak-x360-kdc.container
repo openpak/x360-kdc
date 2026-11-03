@@ -22,6 +22,8 @@ UserNS=keep-id:uid=100,gid=101
 Volume=%h/openpak/deploy/x360-kdc/secrets:/run/secrets:ro,Z
 Volume=%h/openpak/deploy/x360-kdc/state:/var/lib/x360-kdc:rw,Z
 EnvironmentFile=%h/openpak/deploy/x360-kdc/core.env
+# db.env defines X360_KDC_DATABASE_URL and X360_GATEWAY_DATABASE_URL (Postgres on the primary over ZeroTier, role x360kdc). Mode 0600, never committed.
+EnvironmentFile=%h/openpak/deploy/x360-kdc/db.env
 Environment=X360_KDC_ADDR=:10088
 Environment=X360_KDC_XMACS_KEY=/run/secrets/xmacs-dev-private.pem
 Environment=X360_KDC_CONSOLE_CA=/run/secrets/console-ca-public.pem
