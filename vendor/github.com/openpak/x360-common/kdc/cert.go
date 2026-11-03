@@ -1,6 +1,7 @@
 package kdc
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -66,6 +67,21 @@ func ConsoleID(cert []byte) uint64 {
 	var b [8]byte
 	copy(b[3:], cert[certIDOff:certIDOff+5])
 	return binary.BigEndian.Uint64(b[:])
+}
+
+// ClientWharf is the core "client" label of a console that is the Wharf
+// emulator: its dev certificate carries this part number (0x07). Real consoles
+// get other material, so they keep the empty label.
+const ClientWharf = "wharf"
+
+var wharfPartNumber = []byte("OPENPAKDEV")
+
+// ConsoleClient names the emulator behind a certificate, "" for a real console.
+func ConsoleClient(cert []byte) string {
+	if len(cert) == CertLen && bytes.HasPrefix(cert[7:18], wharfPartNumber) {
+		return ClientWharf
+	}
+	return ""
 }
 
 // ConsoleDigits is the 12-decimal-digit form the firmware puts in names:

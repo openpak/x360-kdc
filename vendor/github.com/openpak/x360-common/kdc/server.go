@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"time"
 )
 
 // Server reads datagrams from one UDP socket and answers them inline. Each
@@ -30,21 +31,22 @@ func (s *Server) Serve(ctx context.Context, conn *net.UDPConn) error {
 			}
 			return err
 		}
+		start := time.Now()
 		reply, res, err := s.Handler.Handle(buf[:n])
 		attrs := []any{"kind", string(res.Kind), "src", src, "len", n}
 		attrs = append(attrs, res.Attrs...)
 		if err != nil {
-			s.Log.Info("rejected", append(attrs, "err", err.Error())...)
+			s.Log.Info("rejected", append(attrs, "err", err.Error(), "ms", time.Since(start).Milliseconds())...)
 			continue
 		}
 		if reply == nil {
-			s.Log.Info("recorded, no reply", attrs...)
+			s.Log.Info("recorded, no reply", append(attrs, "ms", time.Since(start).Milliseconds())...)
 			continue
 		}
 		if _, err := conn.WriteToUDPAddrPort(reply, src); err != nil {
 			s.Log.Warn("reply failed", append(attrs, "err", err)...)
 			continue
 		}
-		s.Log.Info("answered", append(attrs, "reply_len", len(reply))...)
+		s.Log.Info("answered", append(attrs, "reply_len", len(reply), "ms", time.Since(start).Milliseconds())...)
 	}
 }

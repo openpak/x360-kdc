@@ -1,5 +1,9 @@
 # Changelog: x360-kdc
 
+## v0.9.5 (2026-11-03)
+
+- Every KDC datagram line (answered, rejected, recorded) now carries `ms`, the handling time (x360-common v0.5.1). It already logged one line per datagram with kind and result.
+
 ## v0.1.0 - 2026-10-16
 
 - 2026-10-16: live verification with Wharf (real 17559 dashboard). MACS (1167 -> reply), XEAS (346 -> reply)

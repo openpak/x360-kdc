@@ -104,3 +104,31 @@ func socialMessages(b []byte) ([][]byte, error) {
 	}
 	return out, nil
 }
+
+// ListIncomingRequests returns the accounts with a pending request to account.
+func (c *Client) ListIncomingRequests(ctx context.Context, account string) ([]Friend, error) {
+	return c.socialList(ctx, "ListIncomingRequests", account)
+}
+
+// ListOutgoingRequests returns the accounts account has a pending request to.
+func (c *Client) ListOutgoingRequests(ctx context.Context, account string) ([]Friend, error) {
+	return c.socialList(ctx, "ListOutgoingRequests", account)
+}
+
+// Block adds blocked to blocker's own block list.
+func (c *Client) Block(ctx context.Context, blocker, blocked string) error {
+	return c.blockCall(ctx, "Block", blocker, blocked)
+}
+
+// Unblock removes blocked from blocker's own block list.
+func (c *Client) Unblock(ctx context.Context, blocker, blocked string) error {
+	return c.blockCall(ctx, "Unblock", blocker, blocked)
+}
+
+func (c *Client) blockCall(ctx context.Context, method, blocker, blocked string) error {
+	var req pb
+	req.str(1, blocker)
+	req.str(2, blocked)
+	_, err := c.call(ctx, "/openpak.account.v1.Social/"+method, req)
+	return err
+}

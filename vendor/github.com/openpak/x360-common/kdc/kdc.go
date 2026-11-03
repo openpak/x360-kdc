@@ -4,7 +4,7 @@
 // XETGS TGS-REQ for the security gateway sg/S0 (padata 0xD6, reply 0xD7).
 //
 // Every byte layout and every check mirrors OpenPak's clean-room oracle derived
-// from the 17559 XAM image (docs/xbox360/wharf-base-plan.md, the three dated
+// from the 17559 XAM image (internal research notes, the three dated
 // MACS/XEAS/XETGS sections). Nothing here is taken from Microsoft's service.
 // A request that fails any check gets no reply at all; the firmware times out
 // and retries, exactly as it did against the oracle.
