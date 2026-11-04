@@ -230,6 +230,46 @@ func (s *Store) BindCore(name, linkID, accountID string) error {
 	return nil
 }
 
+// EraseAccount removes every console account paired to the OpenPak account
+// (card #120): the certificate, the issued account key and the core link ids.
+// It returns how many entries it removed (0 on a repeat). The consoles stay
+// unowned: one that signs in again is provisioned as new and has to be paired
+// again. The Postgres store is re-read first so a save never writes back a
+// stale map.
+func (s *Store) EraseAccount(ctx context.Context, accountID string) (int, error) {
+	if accountID == "" {
+		return 0, errors.New("account id")
+	}
+	if s.pg != nil {
+		if err := s.Reload(ctx); err != nil {
+			return 0, err
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var gone []string
+	for name, a := range s.m {
+		if a.CoreAccountID == accountID {
+			gone = append(gone, name)
+		}
+	}
+	if len(gone) == 0 {
+		return 0, nil
+	}
+	saved := make(map[string]*Account, len(gone))
+	for _, name := range gone {
+		saved[name] = s.m[name]
+		delete(s.m, name)
+	}
+	if err := s.save(); err != nil {
+		for name, a := range saved {
+			s.m[name] = a
+		}
+		return 0, err
+	}
+	return len(gone), nil
+}
+
 func newAccountRecord(cert, key []byte) []byte {
 	rec := make([]byte, 0, AccountLen)
 	rec = binary.LittleEndian.AppendUint64(rec, accountIDPrefix|ConsoleID(cert))

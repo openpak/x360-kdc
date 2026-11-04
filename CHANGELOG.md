@@ -1,5 +1,9 @@
 # Changelog: x360-kdc
 
+## v0.11.0 (2026-11-04)
+
+- Account erasure (card #120, x360-common v0.8.0): `DELETE /internal/accounts/{account_id}/data` with bearer `ACCOUNT_ERASE_KEY` on `ERASE_ADDR` (default `:9099`; not served while the key is unset), reply `{"service":"x360-kdc","rows":N}`, one `account erased` log line. Removes every console account paired to the OpenPak account (certificate, issued key, core link ids) from the shared `x360_kdc` store; x360-gateway reads that store on every initiation, so it needs no endpoint of its own. The consoles themselves are not banned: one that signs in again is provisioned as new and must be paired again. On the secondary the container uses host networking, so the quadlet binds `ERASE_ADDR` to the ZeroTier address.
+
 ## v0.10.0 (2026-11-03)
 
 - Accounts move to Postgres (x360-common v0.6.0 `kdc.OpenPGStore`, schema `x360_kdc` in database `x360`, `X360_KDC_DATABASE_URL`, required). An existing `accounts.json` is imported once on first start and left in place as a backup. The ticket key stays a file.

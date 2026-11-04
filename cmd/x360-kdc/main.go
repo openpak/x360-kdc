@@ -13,6 +13,7 @@ import (
 
 	"github.com/openpak/x360-common/accountcore"
 	"github.com/openpak/x360-common/config"
+	"github.com/openpak/x360-common/erase"
 	"github.com/openpak/x360-common/kdc"
 )
 
@@ -104,6 +105,9 @@ func main() {
 	} else {
 		log.Warn("X360_KDC_XUACS_URL not set: user AS exchanges (Live sign-in of a profile) are refused")
 	}
+	erase.Serve(ctx, "x360-kdc", func(c context.Context, account string) (int, error) {
+		return store.EraseAccount(c, account)
+	})
 	srv := &kdc.Server{Handler: h, Log: log}
 	if err := srv.Serve(ctx, conn); err != nil {
 		log.Error("serve", "err", err)

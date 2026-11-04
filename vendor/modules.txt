@@ -27,6 +27,7 @@ github.com/jackc/puddle/v2/internal/genstack
 github.com/openpak/x360-common/accountcore
 github.com/openpak/x360-common/config
 github.com/openpak/x360-common/der
+github.com/openpak/x360-common/erase
 github.com/openpak/x360-common/kdc
 github.com/openpak/x360-common/pgstate
 github.com/openpak/x360-common/rc4hmac

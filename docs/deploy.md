@@ -177,3 +177,12 @@ secondary reaches Postgres over ZeroTier: role `x360kdc` (connection limit 3, da
 (`10.212.63.175`), backed by an INPUT rule and `pg_hba.conf` (`host x360 x360kdc 10.89.2.217/32 scram-sha-256`, then
 `host all x360kdc all reject`). The URL lives in `~/openpak/deploy/x360-kdc/db.env` (0600, never committed).
 If the database holds no accounts yet, an existing `accounts.json` is imported once and left in place as a backup.
+
+## Account erasure
+
+`DELETE /internal/accounts/{account_id}/data` with `Authorization: Bearer $ACCOUNT_ERASE_KEY` on `ERASE_ADDR` (default `:9099`).
+Not served while `ACCOUNT_ERASE_KEY` is unset. Reply `{"service":"x360-kdc","rows":N}`. The secondary runs the container with
+host networking, so set `ERASE_ADDR` to the ZeroTier address (`10.212.63.175:9099` in the quadlet) and allow only the
+primary to reach it. Erased: the machine accounts (certificate, issued key, core link ids) paired to the account in the shared
+`x360_kdc` document, which the gateway re-reads on every initiation. The consoles are not banned; a console that signs in again
+is provisioned fresh and must be paired again. Repeat calls return 0 rows.
